@@ -35,7 +35,9 @@ export default async function DashboardPage() {
             Cash recovered, resolution throughput, and open receivables.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">Updated just now</p>
+        <p className="text-xs text-muted-foreground">
+          Live metrics · Supabase
+        </p>
       </div>
 
       {fetchError ? (
