@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* Design tokens (dark is the default theme) */
+:root {
+  --background: 222 53% 15%; /* #0A2540 */
+  --foreground: 210 40% 98%;
+
+  --card: 222 50% 13%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222 50% 13%;
+  --popover-foreground: 210 40% 98%;
+
+  --primary: 222 53% 15%; /* #0A2540 */
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 222 30% 18%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 222 20% 20%;
+  --muted-foreground: 215 20% 70%;
+
+  --accent: 176 100% 42%; /* #00D4C8 */
+  --accent-foreground: 222 53% 10%;
+
+  --border: 222 22% 24%;
+  --input: 222 22% 24%;
+  --ring: 176 100% 42%;
+
+  --radius: 12px;
+}
+
+.light {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  --primary: 222 53% 15%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 46%;
+
+  --accent: 176 100% 42%;
+  --accent-foreground: 222 53% 10%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 176 100% 42%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
