@@ -15,6 +15,18 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_JSON = JSON.stringify(DEFAULT_TEST_INVOICE_PAYLOAD, null, 2);
 
+function isIngestSuccessResponse(data: unknown): data is IngestSuccessResponse {
+  if (!data || typeof data !== "object") return false;
+  const o = data as Record<string, unknown>;
+  return (
+    o.ok === true &&
+    typeof o.invoice_id === "string" &&
+    typeof o.resolution_id === "string" &&
+    o.analysis !== null &&
+    typeof o.analysis === "object"
+  );
+}
+
 type Props = {
   className?: string;
 };
@@ -61,35 +73,40 @@ export function UploadTestInvoice({ className }: Props) {
       }
 
       const asErr = data as Partial<IngestErrorResponse>;
-      const asOk = data as Partial<IngestSuccessResponse>;
+      const asOk = data as Partial<IngestSuccessResponse> & { error?: string };
 
       if (
         !res.ok ||
-        asErr.ok === false ||
-        (typeof asOk.ok === "boolean" && asOk.ok === false)
+        (typeof asErr?.ok === "boolean" && asErr.ok === false)
       ) {
         const errMsg =
-          typeof asErr.error === "string"
+          typeof asErr?.error === "string"
             ? asErr.error
-            : `Request failed (${res.status})`;
+            : typeof asOk?.error === "string"
+              ? asOk.error
+              : "Failed to ingest invoice. Please try again.";
         const code =
           typeof asErr.code === "string" ? ` [${asErr.code}]` : "";
         const full = `${errMsg}${code}`;
+
+        console.error("Ingest error:", full);
         setError(full);
         toast.error("Ingest failed", { description: full });
         return;
       }
 
-      if (asOk.ok !== true || typeof asOk.invoice_id !== "string") {
-        const msg = "Unexpected response from server. Try again or check logs.";
+      if (!isIngestSuccessResponse(data)) {
+        const msg =
+          "Unexpected response from server. Try again or check logs.";
+        console.error("Ingest unexpected shape:", data);
         setError(msg);
         toast.error("Ingest failed", { description: msg });
         return;
       }
 
-      setLastResult(asOk as IngestSuccessResponse);
+      setLastResult(data);
       toast.success("Invoice ingested", {
-        description: `${asOk.analysis?.issues?.length ?? 0} issue(s) · risk ${asOk.analysis?.overall_risk ?? "—"}`,
+        description: `${data.analysis.issues.length} issue(s) · risk ${data.analysis.overall_risk}`,
       });
       router.refresh();
       router.prefetch("/resolutions");
