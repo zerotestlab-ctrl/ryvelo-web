@@ -17,8 +17,8 @@ export default async function ResolutionsPage() {
             Resolutions
           </h1>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Review AI-detected FX, tax, and compliance issues. Approve to run
-            recovery: client email, Stripe success fee, and Wise remittance links.
+            Live cases from Supabase. Review AI-detected issues, then approve to
+            run recovery (email, Stripe success fee, Wise links).
           </p>
         </div>
         <p className="text-xs text-muted-foreground tabular-nums">

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { formatAmount } from "@/lib/format";
-import type { InvoiceRow } from "@/lib/dashboard-placeholder";
+import type { InvoiceRow } from "@/lib/data/invoice-types";
 
 function ResolveNowButton({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
@@ -61,62 +61,81 @@ function statusVariant(
   }
 }
 
-const columns: ColumnDef<InvoiceRow>[] = [
-  {
-    accessorKey: "client",
-    header: "Client",
-    cell: ({ row }) => (
-      <span className="font-medium text-foreground">{row.original.client}</span>
-    ),
-  },
-  {
-    accessorKey: "amount",
-    header: "Amount",
-    cell: ({ row }) => (
-      <span className="tabular-nums text-foreground">
-        {formatAmount(row.original.amount, row.original.currency)}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "currency",
-    header: "Currency",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.currency}</span>
-    ),
-  },
-  {
-    accessorKey: "dueDate",
-    header: "Due date",
-    cell: ({ row }) => (
-      <span className="tabular-nums text-muted-foreground">
-        {row.original.dueDate}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <Badge variant={statusVariant(row.original.status)}>
-        {row.original.status}
-      </Badge>
-    ),
-  },
-  {
-    accessorKey: "lastAction",
-    header: "Last action",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.lastAction}</span>
-    ),
-  },
-  {
-    id: "resolve",
-    header: "",
-    cell: ({ row }) => <ResolveNowButton invoiceId={row.original.id} />,
-  },
-];
+function buildColumns(showResolve: boolean): ColumnDef<InvoiceRow>[] {
+  const base: ColumnDef<InvoiceRow>[] = [
+    {
+      accessorKey: "client",
+      header: "Client",
+      cell: ({ row }) => (
+        <span className="font-medium text-foreground">{row.original.client}</span>
+      ),
+    },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      cell: ({ row }) => (
+        <span className="tabular-nums text-foreground">
+          {formatAmount(row.original.amount, row.original.currency)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "currency",
+      header: "Currency",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.currency}</span>
+      ),
+    },
+    {
+      accessorKey: "dueDate",
+      header: "Due date",
+      cell: ({ row }) => (
+        <span className="tabular-nums text-muted-foreground">
+          {row.original.dueDate}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={statusVariant(row.original.status)}>
+          {row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "lastAction",
+      header: "Last action",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.lastAction}</span>
+      ),
+    },
+  ];
+  if (showResolve) {
+    base.push({
+      id: "resolve",
+      header: "",
+      cell: ({ row }) => <ResolveNowButton invoiceId={row.original.id} />,
+    });
+  }
+  return base;
+}
 
-export function RecentInvoicesDataTable({ data }: { data: InvoiceRow[] }) {
-  return <DataTable columns={columns} data={data} />;
+type RecentInvoicesDataTableProps = {
+  data: InvoiceRow[];
+  /** Show “Resolve now” column (dashboard only). Default true. */
+  showResolveColumn?: boolean;
+  emptyMessage?: string;
+};
+
+export function RecentInvoicesDataTable({
+  data,
+  showResolveColumn = true,
+  emptyMessage = "No invoices yet.",
+}: RecentInvoicesDataTableProps) {
+  const columns = buildColumns(showResolveColumn);
+  return (
+    <DataTable columns={columns} data={data} emptyMessage={emptyMessage} />
+  );
 }

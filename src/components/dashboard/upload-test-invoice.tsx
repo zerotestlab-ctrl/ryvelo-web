@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { FileUp, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { DEFAULT_TEST_INVOICE_PAYLOAD } from "@/lib/ingest/default-test-payload";
-import type { IngestSuccessResponse } from "@/lib/ingest/types";
+import type { IngestErrorResponse, IngestSuccessResponse } from "@/lib/ingest/types";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,23 +48,55 @@ export function UploadTestInvoice({ className }: Props) {
         body: JSON.stringify(parsed),
       });
 
-      const data = (await res.json()) as
-        | IngestSuccessResponse
-        | { ok: false; error?: string };
-
-      if (!res.ok || !("ok" in data) || data.ok === false) {
-        setError(
-          "error" in data && typeof data.error === "string"
-            ? data.error
-            : `Request failed (${res.status})`
-        );
+      const rawText = await res.text();
+      let data: unknown;
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        const snippet = rawText.slice(0, 280).trim() || "(empty body)";
+        const msg = `Invalid response (${res.status}). ${snippet}`;
+        setError(msg);
+        toast.error("Ingest failed", { description: msg });
         return;
       }
 
-      setLastResult(data);
+      const asErr = data as Partial<IngestErrorResponse>;
+      const asOk = data as Partial<IngestSuccessResponse>;
+
+      if (
+        !res.ok ||
+        asErr.ok === false ||
+        (typeof asOk.ok === "boolean" && asOk.ok === false)
+      ) {
+        const errMsg =
+          typeof asErr.error === "string"
+            ? asErr.error
+            : `Request failed (${res.status})`;
+        const code =
+          typeof asErr.code === "string" ? ` [${asErr.code}]` : "";
+        const full = `${errMsg}${code}`;
+        setError(full);
+        toast.error("Ingest failed", { description: full });
+        return;
+      }
+
+      if (asOk.ok !== true || typeof asOk.invoice_id !== "string") {
+        const msg = "Unexpected response from server. Try again or check logs.";
+        setError(msg);
+        toast.error("Ingest failed", { description: msg });
+        return;
+      }
+
+      setLastResult(asOk as IngestSuccessResponse);
+      toast.success("Invoice ingested", {
+        description: `${asOk.analysis?.issues?.length ?? 0} issue(s) · risk ${asOk.analysis?.overall_risk ?? "—"}`,
+      });
       router.refresh();
+      router.prefetch("/resolutions");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error");
+      const msg = e instanceof Error ? e.message : "Network error";
+      setError(msg);
+      toast.error("Ingest failed", { description: msg });
     } finally {
       setLoading(false);
     }

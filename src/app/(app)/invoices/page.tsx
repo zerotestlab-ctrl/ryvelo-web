@@ -1,72 +1,56 @@
-export default function InvoicesPage() {
+import { auth } from "@clerk/nextjs/server";
+
+import { RecentInvoicesDataTable } from "@/components/dashboard/recent-invoices-data-table";
+import { getDashboardData } from "@/lib/data/dashboard";
+
+export const dynamic = "force-dynamic";
+
+export default async function InvoicesPage() {
+  const { userId } = await auth();
+  const { invoices, fetchError, hasProfile } = await getDashboardData(userId);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Invoices</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Track open balances, aging, and collections status.
-        </p>
+      <div className="flex flex-col gap-1 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Invoices
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Open balances and status from your live Supabase invoices (newest
+            ingested first).
+          </p>
+        </div>
+        {hasProfile && userId ? (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {invoices.length} invoice{invoices.length === 1 ? "" : "s"}
+          </span>
+        ) : null}
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="text-sm font-semibold">Open invoices</div>
-          <div className="text-xs text-muted-foreground">12 results</div>
+      {fetchError ? (
+        <div
+          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+          role="status"
+        >
+          Could not load invoices: {fetchError}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-t border-border bg-black/10 text-xs text-muted-foreground">
-              <tr className="[&>th]:px-4 [&>th]:py-2.5 [&>th]:text-left [&>th]:font-medium">
-                <th>Invoice</th>
-                <th>Account</th>
-                <th>Aging</th>
-                <th>Status</th>
-                <th className="text-right">Balance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {[
-                {
-                  invoice: "INV-10492",
-                  account: "Alpine Logistics",
-                  aging: "12d",
-                  status: "In collections",
-                  balance: "$8,240",
-                },
-                {
-                  invoice: "INV-10481",
-                  account: "Northwind Retail",
-                  aging: "3d",
-                  status: "In dispute",
-                  balance: "$1,120",
-                },
-                {
-                  invoice: "INV-10477",
-                  account: "Apex Manufacturing",
-                  aging: "0d",
-                  status: "Sent",
-                  balance: "$14,600",
-                },
-              ].map((row) => (
-                <tr key={row.invoice} className="[&>td]:px-4 [&>td]:py-3">
-                  <td className="font-medium text-foreground">{row.invoice}</td>
-                  <td className="text-muted-foreground">{row.account}</td>
-                  <td className="text-muted-foreground">{row.aging}</td>
-                  <td>
-                    <span className="inline-flex items-center rounded-md border border-border bg-white/5 px-2 py-0.5 text-xs font-medium">
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="text-right tabular-nums text-foreground">
-                    {row.balance}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      ) : null}
+
+      {!hasProfile && userId ? (
+        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          No Supabase profile linked to this sign-in. Add a{" "}
+          <span className="font-mono text-xs text-foreground">profiles</span> row
+          with your Clerk user id in{" "}
+          <span className="font-mono text-xs text-foreground">clerk_id</span>.
         </div>
-      </div>
+      ) : null}
+
+      <RecentInvoicesDataTable
+        data={invoices}
+        showResolveColumn={false}
+        emptyMessage="No invoices yet. Ingest an invoice from the dashboard."
+      />
     </div>
   );
 }
-

@@ -1,10 +1,11 @@
-import { createSupabaseAdminClient, getProfileIdForClerkUser } from "@/lib/supabase/admin";
-import type { InvoiceRow } from "@/lib/dashboard-placeholder";
+import { createSupabaseAdminClient, getProfileRowForClerkUser } from "@/lib/supabase/admin";
+import { formatSubscriptionPlanLabel } from "@/lib/subscription";
+import type { InvoiceRow } from "@/lib/data/invoice-types";
 import type { ResolutionTimelineItem } from "@/components/ui/resolution-timeline";
 import type { CashVelocityPoint } from "@/components/dashboard/cash-velocity-chart";
 import { formatAmount } from "@/lib/format";
 
-type DbInvoice = {
+type DbInvoiceRow = {
   id: string;
   client_name: string | null;
   amount: string | number | null;
@@ -12,15 +13,18 @@ type DbInvoice = {
   due_date: string | null;
   status: string | null;
   ingested_at: string | null;
+  invoice_date: string | null;
 };
 
-type DbResolution = {
+type DbResolutionRow = {
   id: string;
   invoice_id: string;
   created_at: string | null;
   outcome_status: string | null;
   issues_detected: unknown;
   amount_recovered: string | number | null;
+  resolved_at: string | null;
+  human_reviewed: boolean | null;
 };
 
 type DbResolutionMetrics = {
@@ -94,7 +98,6 @@ function buildMetrics(
     (i) => i.status !== "resolved" && i.status !== "failed"
   ).length;
 
-  /** Average calendar days from invoice_date → resolved_at for resolved rows in a window. */
   function avgInvoiceToResolvedDays(range: [Date, Date]): number | null {
     let sum = 0;
     let n = 0;
@@ -249,11 +252,18 @@ function issuesToStrings(issues_detected: unknown): string[] {
     .filter((x): x is string => Boolean(x));
 }
 
+const emptyMetrics = (): ReturnType<typeof buildMetrics> =>
+  buildMetrics([], []);
+
+const RECENT_INVOICES_LIMIT = 25;
+const RECENT_RESOLUTIONS_LIMIT = 25;
+
 export async function getDashboardData(clerkUserId: string | null): Promise<{
   invoices: InvoiceRow[];
   resolutions: ResolutionTimelineItem[];
   fetchError: string | null;
   hasProfile: boolean;
+  subscriptionPlanLabel: string;
   metrics: {
     totalRecoveredMtd: number;
     avgResolutionDays: number | null;
@@ -262,79 +272,44 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
     cashVelocity: CashVelocityPoint[];
   };
 }> {
-  const emptyMetrics = {
-    totalRecoveredMtd: 0,
-    avgResolutionDays: null as number | null,
-    openInvoices: 0,
-    dsoChangePercent: null as number | null,
-    cashVelocity: [] as CashVelocityPoint[],
-  };
-
   if (!clerkUserId) {
     return {
       invoices: [],
       resolutions: [],
       fetchError: null,
       hasProfile: false,
-      metrics: emptyMetrics,
+      subscriptionPlanLabel: "Free",
+      metrics: emptyMetrics(),
     };
   }
 
   try {
-    const profileId = await getProfileIdForClerkUser(clerkUserId);
-    if (!profileId) {
+    const profileRow = await getProfileRowForClerkUser(clerkUserId);
+    if (!profileRow) {
       return {
         invoices: [],
         resolutions: [],
         fetchError: null,
         hasProfile: false,
-        metrics: emptyMetrics,
+        subscriptionPlanLabel: "Free",
+        metrics: emptyMetrics(),
       };
     }
+
+    const profileId = profileRow.id;
+    const subscriptionPlanLabel = formatSubscriptionPlanLabel(
+      profileRow.subscription_plan
+    );
 
     const supabase = createSupabaseAdminClient();
 
-    const { data: metricInvoices, error: metricInvErr } = await supabase
-      .from("invoices")
-      .select("id, invoice_date, status")
-      .eq("user_id", profileId);
-
-    if (metricInvErr) {
-      return {
-        invoices: [],
-        resolutions: [],
-        fetchError: metricInvErr.message,
-        hasProfile: true,
-        metrics: emptyMetrics,
-      };
-    }
-
-    const metricIds = (metricInvoices ?? []).map((m) => m.id);
-    let metrics = emptyMetrics;
-    if (metricIds.length > 0) {
-      const { data: metricRes, error: metricResErr } = await supabase
-        .from("resolutions")
-        .select(
-          "invoice_id, amount_recovered, resolved_at, created_at, outcome_status"
-        )
-        .in("invoice_id", metricIds);
-
-      if (!metricResErr && metricRes) {
-        metrics = buildMetrics(
-          (metricInvoices ?? []) as DbInvoiceMetrics[],
-          metricRes as DbResolutionMetrics[]
-        );
-      }
-    }
-
-    const { data: invData, error: invErr } = await supabase
+    const { data: allInvData, error: invErr } = await supabase
       .from("invoices")
       .select(
-        "id, client_name, amount, currency, due_date, status, ingested_at"
+        "id, client_name, amount, currency, due_date, status, ingested_at, invoice_date"
       )
       .eq("user_id", profileId)
-      .order("ingested_at", { ascending: false })
-      .limit(25);
+      .order("ingested_at", { ascending: false });
 
     if (invErr) {
       return {
@@ -342,23 +317,24 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
         resolutions: [],
         fetchError: invErr.message,
         hasProfile: true,
-        metrics,
+        subscriptionPlanLabel,
+        metrics: emptyMetrics(),
       };
     }
 
-    const invoices = (invData ?? []) as DbInvoice[];
-    const ids = invoices.map((i) => i.id);
+    const allInvoices = (allInvData ?? []) as DbInvoiceRow[];
+    const invoiceIds = allInvoices.map((i) => i.id);
 
-    let resolutions: ResolutionTimelineItem[] = [];
-    if (ids.length > 0) {
+    let metrics = emptyMetrics();
+    let allResolutions: DbResolutionRow[] = [];
+
+    if (invoiceIds.length > 0) {
       const { data: resData, error: resErr } = await supabase
         .from("resolutions")
         .select(
-          "id, invoice_id, created_at, outcome_status, issues_detected, amount_recovered"
+          "id, invoice_id, created_at, outcome_status, issues_detected, amount_recovered, resolved_at, human_reviewed"
         )
-        .in("invoice_id", ids)
-        .order("created_at", { ascending: false })
-        .limit(25);
+        .in("invoice_id", invoiceIds);
 
       if (resErr) {
         return {
@@ -366,37 +342,64 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
           resolutions: [],
           fetchError: resErr.message,
           hasProfile: true,
-          metrics,
+          subscriptionPlanLabel,
+          metrics: emptyMetrics(),
         };
       }
 
-      const byInvoice = new Map(invoices.map((i) => [i.id, i]));
+      allResolutions = (resData ?? []) as DbResolutionRow[];
 
-      resolutions = ((resData ?? []) as DbResolution[]).map((r) => {
-        const inv = byInvoice.get(r.invoice_id);
-        const client = inv?.client_name ?? "Invoice";
-        const shortId = r.invoice_id.slice(0, 8);
-        const o = mapOutcome(r.outcome_status);
-        const currency = inv?.currency ?? "USD";
-        const recovered =
-          r.outcome_status === "resolved" && r.amount_recovered != null
-            ? formatAmount(Number(r.amount_recovered), currency)
-            : undefined;
-        return {
-          id: r.id,
-          invoiceLabel: `${client} · ${shortId}`,
-          ...o,
-          recoveredLabel: recovered,
-          issues:
-            issuesToStrings(r.issues_detected).length > 0
-              ? issuesToStrings(r.issues_detected)
-              : ["No issues recorded"],
-          timestamp: formatRelative(r.created_at),
-        };
-      });
+      const metricInvoices: DbInvoiceMetrics[] = allInvoices.map((i) => ({
+        id: i.id,
+        invoice_date: i.invoice_date,
+        status: i.status,
+      }));
+
+      const metricRes: DbResolutionMetrics[] = allResolutions.map((r) => ({
+        invoice_id: r.invoice_id,
+        amount_recovered: r.amount_recovered,
+        resolved_at: r.resolved_at,
+        created_at: r.created_at,
+        outcome_status: r.outcome_status,
+      }));
+
+      metrics = buildMetrics(metricInvoices, metricRes);
     }
 
-    const rows: InvoiceRow[] = invoices.map((i) => ({
+    const byInvoice = new Map(allInvoices.map((i) => [i.id, i]));
+
+    const recentInvoices = allInvoices.slice(0, RECENT_INVOICES_LIMIT);
+
+    const sortedForTimeline = [...allResolutions].sort((a, b) => {
+      const ta = new Date(a.created_at ?? 0).getTime();
+      const tb = new Date(b.created_at ?? 0).getTime();
+      return tb - ta;
+    });
+    const timelineSlice = sortedForTimeline.slice(0, RECENT_RESOLUTIONS_LIMIT);
+
+    const resolutions: ResolutionTimelineItem[] = timelineSlice.map((r) => {
+      const inv = byInvoice.get(r.invoice_id);
+      const client = inv?.client_name ?? "Invoice";
+      const shortId = r.invoice_id.slice(0, 8);
+      const o = mapOutcome(r.outcome_status);
+      const currency = inv?.currency ?? "USD";
+      const recovered =
+        r.outcome_status === "resolved" && r.amount_recovered != null
+          ? formatAmount(Number(r.amount_recovered), currency)
+          : undefined;
+      const issueLines = issuesToStrings(r.issues_detected);
+      return {
+        id: r.id,
+        invoiceLabel: `${client} · ${shortId}`,
+        ...o,
+        recoveredLabel: recovered,
+        humanReviewed: Boolean(r.human_reviewed),
+        issues: issueLines.length > 0 ? issueLines : ["No issues recorded"],
+        timestamp: formatRelative(r.created_at),
+      };
+    });
+
+    const rows: InvoiceRow[] = recentInvoices.map((i) => ({
       id: i.id,
       client: i.client_name ?? "Unknown",
       amount: Number(i.amount ?? 0),
@@ -411,6 +414,7 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
       resolutions,
       fetchError: null,
       hasProfile: true,
+      subscriptionPlanLabel,
       metrics,
     };
   } catch (e) {
@@ -420,7 +424,8 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
       resolutions: [],
       fetchError: msg,
       hasProfile: false,
-      metrics: emptyMetrics,
+      subscriptionPlanLabel: "Free",
+      metrics: emptyMetrics(),
     };
   }
 }

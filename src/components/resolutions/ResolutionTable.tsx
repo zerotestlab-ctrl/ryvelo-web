@@ -89,6 +89,15 @@ const columns: ColumnDef<ResolutionListRow>[] = [
       );
     },
   },
+  {
+    id: "humanReviewed",
+    header: "Human reviewed",
+    cell: ({ row }) => (
+      <span className="text-xs tabular-nums text-muted-foreground">
+        {row.original.humanReviewed ? "Yes" : "No"}
+      </span>
+    ),
+  },
 ];
 
 type Props = {
@@ -106,7 +115,7 @@ export function ResolutionTable({ data }: Props) {
       <DataTable
         columns={columns}
         data={tableData}
-        emptyMessage="No resolutions yet."
+        emptyMessage="No resolutions yet. Ingest an invoice from the dashboard to create one."
         onRowClick={(r) => {
           setSelected(r);
           setOpen(true);

@@ -1,11 +1,16 @@
 /**
- * Autonomous resolution engine (LangGraph).
+ * Full autonomous resolution engine (LangGraph).
  *
- * ZEROTEST: set RESOLUTION_SKIP_HUMAN=true to run detect→propose→human→execute→log
- * in one call without UI approval (QA / staging only).
+ * **Phase 1 graph** (`resolutionGraph` / `resolutionPhaseOneGraph`):
+ * `detect_issues` → `propose_resolution` → `human_review` → END (awaiting human in UI).
+ *
+ * **Phase 2 graph** (`resolutionPhaseTwoGraph`):
+ * `execute_resolution` (email + Stripe/Wise links) → `log_outcome` (Supabase + invoice status).
+ *
+ * ZEROTEST: `RESOLUTION_SKIP_HUMAN=true` runs both phases in one call without UI approval.
  *
  * Human gate: first `runResolutionWorkflow(invoiceId)` stops after `human_review`
- * (phase: awaiting_human). Call again with `{ humanApproved: true }` after UI approval.
+ * (`phase: awaiting_human`). Call again with `{ humanApproved: true }` after UI approval.
  */
 
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
@@ -408,6 +413,33 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
   const aiSteps = [...s.aiSteps, nextStep];
   await persistAiSteps(s.resolutionId, aiSteps);
 
+  /** Mark human review complete once recovery email + links step has run (approved path). */
+  if (s.resolutionId) {
+    const supabaseExec = createSupabaseAdminClient();
+    const { error: hrErr } = await supabaseExec
+      .from("resolutions")
+      .update({ human_reviewed: true })
+      .eq("id", s.resolutionId);
+    if (hrErr) {
+      const failSteps = [
+        ...aiSteps,
+        step(
+          "execute_resolution",
+          { error: `human_reviewed: ${hrErr.message}` },
+          "failed"
+        ),
+      ];
+      await persistAiSteps(s.resolutionId, failSteps);
+      return {
+        snapshot: {
+          ...s,
+          status: "failed",
+          aiSteps: failSteps,
+        },
+      };
+    }
+  }
+
   return {
     snapshot: {
       ...s,
@@ -603,7 +635,7 @@ function proposedFromSteps(steps: ResolutionStep[]): ProposedResolution {
 async function loadContextForInvoice(
   invoiceId: string,
   mode: "fresh" | "resume_execute",
-  opts?: { runUnattended?: boolean }
+  opts?: { runUnattended?: boolean; rawOverlay?: Record<string, unknown> }
 ): Promise<ResolutionState> {
   const supabase = createSupabaseAdminClient();
   const { data: inv, error: invErr } = await supabase
@@ -630,13 +662,16 @@ async function loadContextForInvoice(
 
   const { data: res } = await supabase
     .from("resolutions")
-    .select("id, ai_steps, issues_detected")
+    .select("id, ai_steps, issues_detected, human_reviewed")
     .eq("invoice_id", invoiceId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const rawInvoice = rowToRawInvoice(inv);
+  let rawInvoice = rowToRawInvoice(inv);
+  if (opts?.rawOverlay && mode === "fresh") {
+    rawInvoice = { ...rawInvoice, ...opts.rawOverlay };
+  }
 
   if (mode === "fresh") {
     const skipHuman =
@@ -694,7 +729,12 @@ async function loadContextForInvoice(
  */
 export async function runResolutionWorkflow(
   invoiceId: string,
-  options?: { humanApproved?: boolean; runUnattended?: boolean }
+  options?: {
+    humanApproved?: boolean;
+    runUnattended?: boolean;
+    /** Merged onto `rawInvoice` for a fresh run only (e.g. `startResolution`). */
+    rawOverlay?: Record<string, unknown>;
+  }
 ): Promise<ResolutionWorkflowResult> {
   if (options?.humanApproved === true) {
     let state = await loadContextForInvoice(invoiceId, "resume_execute");
@@ -749,6 +789,7 @@ export async function runResolutionWorkflow(
 
   let state = await loadContextForInvoice(invoiceId, "fresh", {
     runUnattended: options?.runUnattended === true,
+    rawOverlay: options?.rawOverlay,
   });
 
   const skip =
@@ -798,6 +839,43 @@ export async function runResolutionWorkflow(
     resolutionId: s2.resolutionId,
     state: s2,
   };
+}
+
+/**
+ * Start resolution for an invoice: verifies `profileId` / `clerkId`, merges `rawPayload`
+ * over the stored invoice snapshot, then runs the same workflow as `runResolutionWorkflow`.
+ */
+export async function startResolution(
+  invoiceId: string,
+  rawPayload: Record<string, unknown>,
+  profileId: string,
+  clerkId: string
+): Promise<ResolutionWorkflowResult> {
+  const supabase = createSupabaseAdminClient();
+  const { data: inv, error: invErr } = await supabase
+    .from("invoices")
+    .select("id, user_id")
+    .eq("id", invoiceId)
+    .maybeSingle();
+
+  if (invErr || !inv) {
+    throw new Error(invErr?.message ?? "Invoice not found");
+  }
+  if (inv.user_id !== profileId) {
+    throw new Error("Invoice does not belong to this profile");
+  }
+
+  const { data: prof, error: pErr } = await supabase
+    .from("profiles")
+    .select("id, clerk_id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (pErr || !prof || prof.clerk_id !== clerkId) {
+    throw new Error("Profile not found or clerk id does not match");
+  }
+
+  return runResolutionWorkflow(invoiceId, { rawOverlay: rawPayload });
 }
 
 /** @deprecated use runResolutionWorkflow */

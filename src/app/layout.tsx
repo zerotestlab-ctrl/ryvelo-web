@@ -3,7 +3,10 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { ClerkProvider } from "@clerk/nextjs";
+import { Toaster } from "sonner";
+
 import { ThemeProvider } from "@/components/theme-provider";
+import { clerkPublicAuthConfig } from "@/lib/clerk-public-config";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -27,7 +30,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <ClerkProvider>
+        <ClerkProvider
+          signInUrl={clerkPublicAuthConfig.signInUrl}
+          signUpUrl={clerkPublicAuthConfig.signUpUrl}
+          signInFallbackRedirectUrl={
+            clerkPublicAuthConfig.signInFallbackRedirectUrl
+          }
+          signUpFallbackRedirectUrl={
+            clerkPublicAuthConfig.signUpFallbackRedirectUrl
+          }
+          afterSignInUrl={clerkPublicAuthConfig.signInFallbackRedirectUrl}
+          afterSignUpUrl={clerkPublicAuthConfig.signUpFallbackRedirectUrl}
+        >
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -35,6 +49,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Toaster richColors position="top-center" closeButton />
           </ThemeProvider>
         </ClerkProvider>
       </body>

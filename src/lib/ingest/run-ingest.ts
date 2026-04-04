@@ -9,6 +9,22 @@ import type {
   IngestSuccessResponse,
 } from "@/lib/ingest/types";
 
+const LOG = "[ingest]";
+
+/** User-visible string + full object logged server-side. */
+function formatSupabaseWriteError(
+  err: { message: string; details?: string | null; hint?: string | null; code?: string } | null,
+  fallback: string
+): string {
+  if (!err?.message) return fallback;
+  const parts = [err.message.trim()];
+  if (err.hint?.trim()) parts.push(`Hint: ${err.hint.trim()}`);
+  if (err.details?.trim() && err.details.trim() !== err.message.trim()) {
+    parts.push(err.details.trim());
+  }
+  return parts.join(" · ");
+}
+
 function validatePayload(body: unknown): IngestInvoicePayload | IngestErrorResponse {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, error: "Invalid JSON body", code: "VALIDATION" };
@@ -50,20 +66,30 @@ export async function runIngestInvoice(opts: {
 }): Promise<IngestSuccessResponse | IngestErrorResponse> {
   const { clerkUserId, body } = opts;
 
+  console.log(`${LOG} start`);
+
   if (!clerkUserId) {
+    console.warn(`${LOG} aborted: not signed in`);
     return { ok: false, error: "Not signed in", code: "UNAUTHORIZED" };
   }
 
   const validated = validatePayload(body);
   if ("ok" in validated && validated.ok === false) {
+    console.warn(`${LOG} validation failed`, validated.error, validated.code);
     return validated;
   }
   const payload = validated as IngestInvoicePayload;
+  console.log(`${LOG} payload ok`, {
+    source: payload.source,
+    hasRawData: !!payload.raw_data,
+  });
 
   let profileId: string;
   try {
+    console.log(`${LOG} profile lookup…`);
     const id = await getProfileIdForClerkUser(clerkUserId);
     if (!id) {
+      console.warn(`${LOG} no profile row for clerk user`);
       return {
         ok: false,
         error:
@@ -72,15 +98,24 @@ export async function runIngestInvoice(opts: {
       };
     }
     profileId = id;
+    console.log(`${LOG} profile ok`, { profileId });
   } catch (e) {
+    console.error(`${LOG} profile lookup error`, e);
     const msg = e instanceof Error ? e.message : "Profile lookup failed";
     return { ok: false, error: msg, code: "DATABASE" };
   }
 
   let analysisResult: Awaited<ReturnType<typeof analyzeInvoicePayload>>;
   try {
+    console.log(`${LOG} analyze invoice…`);
     analysisResult = await analyzeInvoicePayload(payload);
+    console.log(`${LOG} analyze ok`, {
+      source: analysisResult.source,
+      issues: analysisResult.analysis.issues.length,
+      risk: analysisResult.analysis.overall_risk,
+    });
   } catch (e) {
+    console.error(`${LOG} analyze failed`, e);
     const msg = e instanceof Error ? e.message : "Analysis failed";
     return { ok: false, error: msg, code: "LLM" };
   }
@@ -94,6 +129,7 @@ export async function runIngestInvoice(opts: {
   try {
     supabase = createSupabaseAdminClient();
   } catch (e) {
+    console.error(`${LOG} Supabase client`, e);
     const msg = e instanceof Error ? e.message : "Supabase configuration error";
     return { ok: false, error: msg, code: "CONFIG" };
   }
@@ -108,6 +144,7 @@ export async function runIngestInvoice(opts: {
     },
   };
 
+  console.log(`${LOG} insert invoice…`);
   const { data: invoiceRow, error: invError } = await supabase
     .from("invoices")
     .insert({
@@ -126,15 +163,21 @@ export async function runIngestInvoice(opts: {
     .single();
 
   if (invError || !invoiceRow) {
+    console.error(`${LOG} insert invoice failed`, invError);
     return {
       ok: false,
-      error: invError?.message ?? "Failed to insert invoice",
+      error: formatSupabaseWriteError(
+        invError,
+        "Could not save the invoice to the database."
+      ),
       code: "DATABASE",
     };
   }
 
   const invoiceId = invoiceRow.id as string;
+  console.log(`${LOG} invoice row created`, { invoiceId });
 
+  console.log(`${LOG} insert resolution…`);
   const { data: resRow, error: resError } = await supabase
     .from("resolutions")
     .insert({
@@ -157,13 +200,29 @@ export async function runIngestInvoice(opts: {
     .single();
 
   if (resError || !resRow) {
-    await supabase.from("invoices").delete().eq("id", invoiceId);
+    console.error(`${LOG} insert resolution failed`, resError);
+    const { error: delErr } = await supabase
+      .from("invoices")
+      .delete()
+      .eq("id", invoiceId);
+    if (delErr) {
+      console.error(`${LOG} rollback invoice delete failed`, delErr);
+    }
     return {
       ok: false,
-      error: resError?.message ?? "Failed to create resolution",
+      error: formatSupabaseWriteError(
+        resError,
+        "Invoice was saved but creating the resolution failed. The invoice row was removed."
+      ),
       code: "DATABASE",
     };
   }
+
+  console.log(`${LOG} success`, {
+    invoiceId,
+    resolutionId: resRow.id,
+    status: invoiceStatus,
+  });
 
   return {
     ok: true,

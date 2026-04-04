@@ -44,6 +44,7 @@ export async function resolveInvoiceNowAction(invoiceId: string) {
 
   revalidatePath("/resolutions");
   revalidatePath("/dashboard");
+  revalidatePath("/invoices");
 
   if (result.phase === "failed") {
     return {
@@ -130,6 +131,7 @@ export async function rejectResolutionAction(resolutionId: string) {
 
   revalidatePath("/resolutions");
   revalidatePath("/dashboard");
+  revalidatePath("/invoices");
 
   return { ok: true as const };
 }

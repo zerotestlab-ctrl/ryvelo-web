@@ -95,7 +95,8 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
   if (!row) return null;
 
   const lines = issueLines(row.issuesDetected);
-  const canAct = row.outcomeStatus === "pending";
+  const canAct =
+    row.outcomeStatus === "pending" && !row.humanReviewed;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,6 +107,11 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
           </DialogTitle>
           <DialogDescription className="text-sm">
             {row.clientName} · {row.statusLabel}
+            {row.humanReviewed ? (
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Human reviewed (live Supabase)
+              </span>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
 

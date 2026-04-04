@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   clerk_id TEXT UNIQUE NOT NULL,
   full_name TEXT,
+  subscription_plan TEXT DEFAULT 'free',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -68,7 +69,7 @@ CREATE TABLE IF NOT EXISTS resolution_embeddings (
 -- Indexes
 -- ---------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
-CREATE INDEX IF NOT EXISTS idx_resolutions_invoice_id ON resolutions(resolution_id);
+CREATE INDEX IF NOT EXISTS idx_resolutions_invoice_id ON resolutions(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_resolution_embeddings_resolution_id ON resolution_embeddings(resolution_id);
 
 -- ---------------------------------------------------------------------------

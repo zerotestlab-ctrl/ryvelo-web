@@ -13,6 +13,8 @@ export type ResolutionTimelineItem = {
   outcomeVariant?: "success" | "warning" | "muted";
   /** Formatted recovered amount when resolved */
   recoveredLabel?: string;
+  /** From `resolutions.human_reviewed` */
+  humanReviewed?: boolean;
   issues: string[];
   timestamp: string;
 };
@@ -63,6 +65,11 @@ export function ResolutionTimeline({
                   {item.recoveredLabel ? (
                     <span className="text-xs font-medium tabular-nums text-accent">
                       {item.recoveredLabel} recovered
+                    </span>
+                  ) : null}
+                  {item.humanReviewed ? (
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Human reviewed
                     </span>
                   ) : null}
                 </div>

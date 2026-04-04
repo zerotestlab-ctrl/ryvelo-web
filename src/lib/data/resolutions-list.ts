@@ -12,6 +12,8 @@ export type ResolutionListRow = {
   currency: string;
   statusLabel: string;
   outcomeStatus: string;
+  /** From `resolutions.human_reviewed` — true after approve/reject/execute path. */
+  humanReviewed: boolean;
   aiSteps: ResolutionStep[];
   issuesDetected: unknown;
 };
@@ -120,6 +122,7 @@ export async function getResolutionListForClerkUser(
         issues_detected,
         ai_steps,
         invoice_id,
+        human_reviewed,
         invoices (
           id,
           client_name,
@@ -157,6 +160,7 @@ export async function getResolutionListForClerkUser(
       const issues = row.issues_detected;
       const steps = (row.ai_steps as ResolutionStep[] | null) ?? [];
       const outcome = typeof row.outcome_status === "string" ? row.outcome_status : "pending";
+      const humanReviewed = Boolean(row.human_reviewed);
 
       return {
         id: String(row.id),
@@ -169,6 +173,7 @@ export async function getResolutionListForClerkUser(
         currency,
         statusLabel: statusLabel(outcome),
         outcomeStatus: outcome,
+        humanReviewed,
         aiSteps: steps,
         issuesDetected: issues,
       };

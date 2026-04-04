@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { CashVelocityChart } from "@/components/dashboard/cash-velocity-chart";
 import { RecentInvoicesDataTable } from "@/components/dashboard/recent-invoices-data-table";
 import { UploadTestInvoice } from "@/components/dashboard/upload-test-invoice";
+import { SubscriptionUpgradeCta } from "@/components/subscription/upgrade-button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { ResolutionTimeline } from "@/components/ui/resolution-timeline";
 import { getDashboardData } from "@/lib/data/dashboard";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
-  const { invoices, resolutions, fetchError, hasProfile, metrics } =
+  const { invoices, resolutions, fetchError, hasProfile, metrics, subscriptionPlanLabel } =
     await getDashboardData(userId);
 
   const avgResolutionLabel =
@@ -60,6 +61,8 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
+      <SubscriptionUpgradeCta planLabel={subscriptionPlanLabel} />
+
       <UploadTestInvoice />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -95,12 +98,17 @@ export default async function DashboardPage() {
                 Recent invoices
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Highest priority by due date and balance.
+                Newest ingested first (live Supabase).
               </p>
             </div>
-            <span className="text-xs text-muted-foreground">Last 30 days</span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {invoices.length} shown
+            </span>
           </div>
-          <RecentInvoicesDataTable data={invoices} />
+          <RecentInvoicesDataTable
+            data={invoices}
+            emptyMessage="No invoices yet. Ingest an invoice on the dashboard to see it here."
+          />
         </div>
 
         <div className="space-y-3 xl:col-span-5">
@@ -109,7 +117,7 @@ export default async function DashboardPage() {
               Recent resolutions
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Invoice, issues found, outcome.
+              Latest resolution activity (live Supabase).
             </p>
           </div>
           {resolutions.length > 0 ? (

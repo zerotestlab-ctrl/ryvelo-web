@@ -1,7 +1,12 @@
 import { SignIn } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 
+import { clerkPublicAuthConfig } from "@/lib/clerk-public-config";
+
 export default function SignInPage() {
+  const { signInUrl, signUpUrl, signInFallbackRedirectUrl } =
+    clerkPublicAuthConfig;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0A2540] p-6">
       <div className="w-full max-w-md">
@@ -16,10 +21,10 @@ export default function SignInPage() {
               colorInputText: "#FFFFFF",
             },
           }}
-          path="/sign-in"
+          path={signInUrl}
           routing="path"
-          signUpUrl="/sign-up"
-          afterSignInUrl="/dashboard"
+          signUpUrl={signUpUrl}
+          afterSignInUrl={signInFallbackRedirectUrl}
         />
       </div>
     </div>

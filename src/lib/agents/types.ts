@@ -1,3 +1,10 @@
+/**
+ * Autonomous resolution engine — shared types for LangGraph.
+ *
+ * Graph: **detect_issues → propose_resolution → human_review → execute_resolution → log_outcome**
+ * (human gate pauses after phase 1; phase 2 runs after UI approval or automation flags).
+ */
+
 import { z } from "zod";
 
 export type IssueType =
@@ -19,6 +26,7 @@ export interface Issue {
 export interface ResolutionStep {
   step: string;
   timestamp: string;
+  /** LLM or tool payload for this step (JSON-serializable). */
   aiOutput: unknown;
   status: "success" | "pending" | "failed";
 }
@@ -50,7 +58,7 @@ export interface ResolutionState {
   amountRecovered?: number;
   aiSteps: ResolutionStep[];
   status: ResolutionRunStatus;
-  /** ZEROTEST / automation: run execute+log without UI approval */
+  /** When true, skip human_review and run execute+log in the same run (QA / “Resolve now”). */
   skipHumanGate?: boolean;
 }
 
