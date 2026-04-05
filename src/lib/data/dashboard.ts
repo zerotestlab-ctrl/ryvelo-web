@@ -268,6 +268,7 @@ const emptyMetrics = (): ReturnType<typeof buildMetrics> =>
 const RECENT_INVOICES_LIMIT = 25;
 const RECENT_RESOLUTIONS_LIMIT = 25;
 
+/** Invoices and resolutions for the signed-in user — Supabase only (service role + profile scope). */
 export async function getDashboardData(clerkUserId: string | null): Promise<{
   invoices: InvoiceRow[];
   resolutions: ResolutionTimelineItem[];

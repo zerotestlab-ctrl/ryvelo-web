@@ -124,8 +124,8 @@ export function UploadInvoiceButton({ className, disabled }: Props) {
         }
 
         const ok = data as IngestSuccessResponse;
-        toast.success("Invoice ingested successfully — check Resolutions", {
-          description: `${ok.analysis.issues.length} issue(s) · risk ${ok.analysis.overall_risk}`,
+        toast.success("Invoice imported", {
+          description: `${ok.analysis.issues.length} issue(s) detected · risk ${ok.analysis.overall_risk}. Dashboard, Invoices, and Resolutions refreshed.`,
         });
         if (options?.clearPaste) {
           setPasteText("");

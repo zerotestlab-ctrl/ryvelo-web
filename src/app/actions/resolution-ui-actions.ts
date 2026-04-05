@@ -1,14 +1,11 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
 
 import { runResolutionWorkflow } from "@/lib/agents/resolution-graph";
+import { revalidateAppRoutes } from "@/lib/cache/revalidate-app-routes";
+import { APPROVED_EMAIL_STEP_SKIPPED_TITLE } from "@/lib/resolution-toast-messages";
 import { createSupabaseAdminClient, getProfileIdForClerkUser } from "@/lib/supabase/admin";
-
-/** Shown when approve is recorded in DB but the email/workflow step failed. */
-const APPROVE_FORCE_WARNING =
-  "Resolution approved (email step skipped due to error)";
 
 /**
  * Best-effort: mark the latest resolution for this invoice as human-approved.
@@ -90,9 +87,7 @@ export async function resolveInvoiceNowAction(invoiceId: string) {
     phase: result.phase,
   });
 
-  revalidatePath("/resolutions");
-  revalidatePath("/dashboard");
-  revalidatePath("/invoices");
+  revalidateAppRoutes();
 
   if (result.phase === "failed") {
     return {
@@ -130,12 +125,10 @@ export async function approveResolutionAction(invoiceId: string) {
   } catch (e) {
     console.error("[approveResolutionAction] runResolutionWorkflow threw", e);
     await forceApproveResolutionInDb(invoiceId);
-    revalidatePath("/resolutions");
-    revalidatePath("/dashboard");
-    revalidatePath("/invoices");
+    revalidateAppRoutes();
     return {
       ok: true as const,
-      warning: APPROVE_FORCE_WARNING,
+      warning: APPROVED_EMAIL_STEP_SKIPPED_TITLE,
     };
   }
   console.error("[approveResolutionAction] after runResolutionWorkflow", {
@@ -143,18 +136,14 @@ export async function approveResolutionAction(invoiceId: string) {
     phase: result.phase,
   });
 
-  revalidatePath("/resolutions");
-  revalidatePath("/dashboard");
-  revalidatePath("/invoices");
+  revalidateAppRoutes();
 
   if (result.phase === "failed") {
     await forceApproveResolutionInDb(invoiceId);
-    revalidatePath("/resolutions");
-    revalidatePath("/dashboard");
-    revalidatePath("/invoices");
+    revalidateAppRoutes();
     return {
       ok: true as const,
-      warning: APPROVE_FORCE_WARNING,
+      warning: APPROVED_EMAIL_STEP_SKIPPED_TITLE,
     };
   }
 
@@ -210,9 +199,7 @@ export async function rejectResolutionAction(resolutionId: string) {
       return { ok: false as const, error: upErr.message };
     }
 
-    revalidatePath("/resolutions");
-    revalidatePath("/dashboard");
-    revalidatePath("/invoices");
+    revalidateAppRoutes();
 
     return { ok: true as const };
   } catch (e) {

@@ -1,8 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+import { revalidateAppRoutes } from "@/lib/cache/revalidate-app-routes";
 import { runIngestInvoice } from "@/lib/ingest/run-ingest";
-import { revalidateAfterIngest } from "@/lib/ingest/revalidate-after-ingest";
 import type { IngestErrorResponse } from "@/lib/ingest/types";
 
 export const runtime = "nodejs";
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
       invoice_id: result.invoice_id,
       resolution_id: result.resolution_id,
     });
-    revalidateAfterIngest();
+    revalidateAppRoutes();
 
     return NextResponse.json(result);
   } catch (e) {

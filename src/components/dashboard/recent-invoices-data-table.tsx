@@ -35,9 +35,12 @@ function ResolveNowButton({ invoiceId }: { invoiceId: string }) {
             if (r.warning) {
               toast.warning("Resolution finished", { description: r.warning });
             } else {
-              toast.success("Resolution completed");
+              toast.success("Resolution completed", {
+                description: "Dashboard and resolutions updated.",
+              });
             }
             router.refresh();
+            queueMicrotask(() => router.refresh());
           } catch (e) {
             toast.error("Couldn’t run resolution", {
               description: e instanceof Error ? e.message : "Unexpected error",

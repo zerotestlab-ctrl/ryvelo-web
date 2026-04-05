@@ -2,8 +2,8 @@
 
 import { auth } from "@clerk/nextjs/server";
 
+import { revalidateAppRoutes } from "@/lib/cache/revalidate-app-routes";
 import { runIngestInvoice } from "@/lib/ingest/run-ingest";
-import { revalidateAfterIngest } from "@/lib/ingest/revalidate-after-ingest";
 import type { IngestErrorResponse, IngestSuccessResponse } from "@/lib/ingest/types";
 
 const LOG = "[ingestInvoiceAction]";
@@ -26,7 +26,7 @@ export async function ingestInvoiceAction(
         invoice_id: result.invoice_id,
         resolution_id: result.resolution_id,
       });
-      revalidateAfterIngest();
+      revalidateAppRoutes();
     } else {
       console.warn(`${LOG} failed`, result.code, result.error);
     }

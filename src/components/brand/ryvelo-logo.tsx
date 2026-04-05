@@ -18,7 +18,7 @@ type RyveloLogoProps = {
 };
 
 /**
- * Ryvelo wordmark: **FileText + DollarSign** on navy — used on marketing + app shell.
+ * Ryvelo wordmark: **Ryvelo** + **FileText** + **DollarSign** (teal on navy) — topbar + sidebar.
  */
 export function RyveloLogo({
   href = "/",
@@ -29,6 +29,7 @@ export function RyveloLogo({
   return (
     <Link
       href={href}
+      aria-label="Ryvelo home"
       className={cn(
         "group flex min-w-0 items-center gap-2.5 rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className

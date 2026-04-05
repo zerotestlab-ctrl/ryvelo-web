@@ -1,7 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
-import { ProfileBootstrap } from "@/components/auth/profile-bootstrap";
 import { DashboardProfileShell } from "@/components/dashboard/dashboard-profile-shell";
 
 import { DashboardPageContent } from "./dashboard-content";
@@ -15,11 +14,8 @@ export default async function DashboardPage() {
   }
 
   return (
-    <>
-      <ProfileBootstrap />
-      <DashboardProfileShell>
-        <DashboardPageContent />
-      </DashboardProfileShell>
-    </>
+    <DashboardProfileShell>
+      <DashboardPageContent />
+    </DashboardProfileShell>
   );
 }

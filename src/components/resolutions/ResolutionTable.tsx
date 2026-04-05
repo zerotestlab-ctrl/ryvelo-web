@@ -116,7 +116,7 @@ export function ResolutionTable({ data }: Props) {
       <DataTable
         columns={columns}
         data={tableData}
-        emptyMessage="No resolutions yet. They appear when invoices are ingested (API or integration)."
+        emptyMessage="No resolutions yet. Ingest an invoice on the Dashboard — rows are loaded live from Supabase."
         onRowClick={(r) => {
           setSelected(r);
           setOpen(true);

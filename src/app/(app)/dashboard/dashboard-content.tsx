@@ -64,11 +64,10 @@ export async function DashboardPageContent() {
         </div>
       ) : null}
 
-      {!fetchError &&
-      invoices.length === 0 &&
-      resolutions.length === 0 ? (
+      {!fetchError && invoices.length === 0 ? (
         <p className="rounded-lg border border-border/60 bg-card/30 px-4 py-3 text-sm text-muted-foreground">
-          No data yet — upload an invoice to populate metrics and tables.
+          No invoices yet — use Upload Invoice above to import JSON; new rows load
+          from Supabase into Dashboard, Invoices, and Resolutions.
         </p>
       ) : null}
 
@@ -116,7 +115,7 @@ export async function DashboardPageContent() {
           </div>
           <RecentInvoicesDataTable
             data={invoices}
-            emptyMessage="No invoices yet. Upload an invoice file to get started."
+            emptyMessage="No invoices yet. Upload or paste JSON above — data is read live from Supabase."
           />
         </div>
 

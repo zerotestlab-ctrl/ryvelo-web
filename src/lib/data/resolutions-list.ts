@@ -92,6 +92,7 @@ function statusLabel(outcome: string | null): string {
   }
 }
 
+/** Resolutions joined to invoices — Supabase only, scoped by `profiles.id` → `invoices.user_id`. */
 export async function getResolutionListForClerkUser(
   clerkUserId: string | null
 ): Promise<{ rows: ResolutionListRow[]; error: string | null }> {

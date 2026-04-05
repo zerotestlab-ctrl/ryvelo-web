@@ -9,6 +9,10 @@ import {
   rejectResolutionAction,
 } from "@/app/actions/resolution-ui-actions";
 import type { ResolutionListRow } from "@/lib/data/resolutions-list";
+import {
+  APPROVED_EMAIL_STEP_SKIPPED_TITLE,
+  RESOLUTION_APPROVED_TITLE,
+} from "@/lib/resolution-toast-messages";
 
 import { ResolutionTimeline } from "@/components/resolutions/ResolutionTimeline";
 import { Button } from "@/components/ui/button";
@@ -84,13 +88,24 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
         }
         close();
         if (res.warning) {
-          toast.warning(res.warning);
+          if (res.warning === APPROVED_EMAIL_STEP_SKIPPED_TITLE) {
+            toast.warning(APPROVED_EMAIL_STEP_SKIPPED_TITLE, {
+              description: "Your approval was saved. Check email settings if needed.",
+            });
+          } else {
+            toast.warning(RESOLUTION_APPROVED_TITLE, {
+              description: res.warning,
+            });
+          }
         } else {
-          toast.success("Resolution completed", {
-            description: "Invoice and resolutions list are updated.",
+          toast.success(RESOLUTION_APPROVED_TITLE, {
+            description: "Saved to Supabase — dashboard and resolutions are updated.",
           });
         }
         router.refresh();
+        queueMicrotask(() => {
+          router.refresh();
+        });
       } catch (e) {
         const raw = e instanceof Error ? e.message : String(e);
         console.error("[ResolutionModal] approveResolutionAction threw", e);
@@ -117,9 +132,10 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
         }
         close();
         toast.success("Resolution rejected", {
-          description: "Status updated.",
+          description: "Status saved in Supabase.",
         });
         router.refresh();
+        queueMicrotask(() => router.refresh());
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Unexpected error";
         console.error("[ResolutionModal] reject", e);
