@@ -9,6 +9,58 @@ import type {
 
 const LOG = "[ingest]";
 
+/** Wrapped plain invoices use this `source` when the client sends a flat JSON object. */
+const PLAIN_INVOICE_SOURCE = "invoice_json";
+
+/**
+ * Accepts either the full ingest shape `{ source, raw_data, ... }` or a flat invoice
+ * object with `invoice_number` and/or `client_name` — the latter is wrapped for validation.
+ */
+function normalizeIngestBody(body: unknown): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return body;
+  }
+  const b = body as Record<string, unknown>;
+
+  const hasFullShape =
+    typeof b.source === "string" &&
+    b.source.trim().length > 0 &&
+    b.raw_data &&
+    typeof b.raw_data === "object" &&
+    !Array.isArray(b.raw_data);
+
+  if (hasFullShape) {
+    return body;
+  }
+
+  const looksLikePlainInvoice = "invoice_number" in b || "client_name" in b;
+
+  if (!looksLikePlainInvoice) {
+    return body;
+  }
+
+  return {
+    source: PLAIN_INVOICE_SOURCE,
+    raw_data: { ...b },
+    client_name:
+      typeof b.client_name === "string" ? b.client_name.slice(0, 500) : undefined,
+    client_email:
+      typeof b.client_email === "string" ? b.client_email.slice(0, 320) : undefined,
+    amount:
+      typeof b.amount === "number" && Number.isFinite(b.amount) ? b.amount : undefined,
+    currency:
+      typeof b.currency === "string" ? b.currency.slice(0, 12).toUpperCase() : undefined,
+    invoice_date:
+      typeof b.invoice_date === "string" || b.invoice_date === null
+        ? (b.invoice_date as string | null)
+        : undefined,
+    due_date:
+      typeof b.due_date === "string" || b.due_date === null
+        ? (b.due_date as string | null)
+        : undefined,
+  };
+}
+
 /** User-visible string + full object logged server-side. */
 function formatSupabaseWriteError(
   err: { message: string; details?: string | null; hint?: string | null; code?: string } | null,
@@ -71,7 +123,8 @@ export async function runIngestInvoice(opts: {
     return { ok: false, error: "Not signed in", code: "UNAUTHORIZED" };
   }
 
-  const validated = validatePayload(body);
+  const normalized = normalizeIngestBody(body);
+  const validated = validatePayload(normalized);
   if ("ok" in validated && validated.ok === false) {
     console.warn(`${LOG} validation failed`, validated.error, validated.code);
     return validated;

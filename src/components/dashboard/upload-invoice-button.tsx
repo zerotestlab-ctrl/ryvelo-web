@@ -73,8 +73,8 @@ export function UploadInvoiceButton({ className, disabled }: Props) {
         }
 
         const ok = data as IngestSuccessResponse;
-        toast.success("Invoice imported", {
-          description: `${ok.analysis.issues.length} issue(s) · risk ${ok.analysis.overall_risk}. Dashboard and resolutions updated.`,
+        toast.success("Invoice ingested successfully — check Resolutions", {
+          description: `${ok.analysis.issues.length} issue(s) · risk ${ok.analysis.overall_risk}`,
         });
         router.prefetch("/dashboard");
         router.prefetch("/resolutions");
