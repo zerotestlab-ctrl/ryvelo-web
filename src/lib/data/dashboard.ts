@@ -237,6 +237,8 @@ function mapOutcome(
       return { outcome: "Resolved", outcomeVariant: "success" };
     case "approved":
       return { outcome: "Approved", outcomeVariant: "warning" };
+    case "approved_with_error":
+      return { outcome: "Approved (error)", outcomeVariant: "warning" };
     case "partial":
       return { outcome: "Partial", outcomeVariant: "warning" };
     case "failed":

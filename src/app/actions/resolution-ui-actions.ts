@@ -39,17 +39,24 @@ export async function resolveInvoiceNowAction(invoiceId: string) {
   }
 
   let result: Awaited<ReturnType<typeof runResolutionWorkflow>>;
+  console.error("[resolveInvoiceNowAction] before runResolutionWorkflow", {
+    invoiceId,
+  });
   try {
     result = await runResolutionWorkflow(invoiceId, {
       runUnattended: true,
     });
   } catch (e) {
-    console.error("[resolveInvoiceNowAction]", e);
+    console.error("[resolveInvoiceNowAction] runResolutionWorkflow threw", e);
     return {
       ok: false as const,
-      error: "Something went wrong. Please try again.",
+      error: e instanceof Error ? e.message : String(e),
     };
   }
+  console.error("[resolveInvoiceNowAction] after runResolutionWorkflow", {
+    invoiceId,
+    phase: result.phase,
+  });
 
   revalidatePath("/resolutions");
   revalidatePath("/dashboard");
@@ -81,17 +88,24 @@ export async function approveResolutionAction(invoiceId: string) {
   }
 
   let result: Awaited<ReturnType<typeof runResolutionWorkflow>>;
+  console.error("[approveResolutionAction] before runResolutionWorkflow", {
+    invoiceId,
+  });
   try {
     result = await runResolutionWorkflow(invoiceId, {
       humanApproved: true,
     });
   } catch (e) {
-    console.error("[approveResolutionAction]", e);
+    console.error("[approveResolutionAction] runResolutionWorkflow threw", e);
     return {
       ok: false as const,
-      error: "Something went wrong. Please try again.",
+      error: e instanceof Error ? e.message : String(e),
     };
   }
+  console.error("[approveResolutionAction] after runResolutionWorkflow", {
+    invoiceId,
+    phase: result.phase,
+  });
 
   revalidatePath("/resolutions");
   revalidatePath("/dashboard");
@@ -165,7 +179,7 @@ export async function rejectResolutionAction(resolutionId: string) {
     console.error("[rejectResolutionAction]", e);
     return {
       ok: false as const,
-      error: "Something went wrong. Please try again.",
+      error: e instanceof Error ? e.message : String(e),
     };
   }
 }

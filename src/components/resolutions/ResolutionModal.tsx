@@ -68,17 +68,25 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
     setError(null);
     startTransition(async () => {
       try {
+        console.error("[ResolutionModal] before approveResolutionAction", {
+          invoiceId: row.invoiceId,
+        });
         const res = await approveResolutionAction(row.invoiceId);
+        console.error("[ResolutionModal] after approveResolutionAction", res);
+
         if (!res.ok) {
+          const detail = res.error;
           toast.error("Couldn’t approve resolution", {
-            description: res.error,
+            description: detail,
           });
-          setError(res.error);
+          setError(detail);
           return;
         }
         close();
         if (res.warning) {
-          toast.warning("Resolution approved", { description: res.warning });
+          toast.warning("Resolution approved", {
+            description: res.warning,
+          });
         } else {
           toast.success("Resolution completed", {
             description: "Invoice and resolutions list are updated.",
@@ -86,10 +94,12 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
         }
         router.refresh();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Unexpected error";
-        console.error("[ResolutionModal] approve", e);
-        toast.error("Couldn’t approve resolution", { description: msg });
-        setError(msg);
+        const raw = e instanceof Error ? e.message : String(e);
+        console.error("[ResolutionModal] approveResolutionAction threw", e);
+        toast.error("Couldn’t approve resolution", {
+          description: raw,
+        });
+        setError(raw);
       }
     });
   }

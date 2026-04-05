@@ -328,8 +328,65 @@ async function humanReviewNode(state: GraphState): Promise<GraphState> {
 // 4. execute_resolution — Resend email + payment link in body
 // ─────────────────────────────────────────────────────────────
 
+/** Shown in UI when the approve path records but email/payment/DB failed — details are in console and ai_steps. */
 const EXECUTION_WARNING_USER_MSG =
-  "Resolution approved. Email/payment step failed — check server logs." as const;
+  "Approved but email/payment step failed. Check console." as const;
+
+/**
+ * Approval is recorded; email/payment/DB step failed — never throws.
+ */
+async function executeResolutionSoftFailure(
+  s: ResolutionState,
+  err: unknown
+): Promise<GraphState> {
+  console.error("Execute resolution failed:", err);
+
+  const errDetail = err instanceof Error ? err.message : String(err);
+  const failStep = step(
+    "execute_resolution",
+    {
+      error: errDetail,
+      userMessage: EXECUTION_WARNING_USER_MSG,
+    },
+    "failed"
+  );
+  const aiSteps = [...s.aiSteps, failStep];
+
+  try {
+    await persistAiSteps(s.resolutionId, aiSteps);
+  } catch (pe) {
+    console.error("Execute resolution failed: persistAiSteps", pe);
+  }
+
+  if (s.resolutionId) {
+    try {
+      const supabaseExec = createSupabaseAdminClient();
+      const { error: dbErr } = await supabaseExec
+        .from("resolutions")
+        .update({
+          human_reviewed: true,
+          outcome_status: "approved_with_error",
+          ai_steps: JSON.parse(JSON.stringify(aiSteps)) as unknown[],
+        })
+        .eq("id", s.resolutionId);
+      if (dbErr) {
+        console.error("Execute resolution failed: resolutions update", dbErr);
+      }
+    } catch (dbErr) {
+      console.error("Execute resolution failed: resolutions update", dbErr);
+    }
+  }
+
+  return {
+    snapshot: {
+      ...s,
+      status: "executing",
+      amountRecovered: s.amountRecovered ?? s.amountAtStake,
+      aiSteps,
+      executionWarning: EXECUTION_WARNING_USER_MSG,
+    },
+  };
+}
 
 async function executeResolutionNode(state: GraphState): Promise<GraphState> {
   const s = state.snapshot;
@@ -338,7 +395,11 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
       ...s.aiSteps,
       step("execute_resolution", { error: "Not approved" }, "failed"),
     ];
-    await persistAiSteps(s.resolutionId, aiSteps);
+    try {
+      await persistAiSteps(s.resolutionId, aiSteps);
+    } catch (pe) {
+      console.error("Execute resolution failed: persistAiSteps (not approved)", pe);
+    }
     return {
       snapshot: {
         ...s,
@@ -401,12 +462,16 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
 
     let emailResult: unknown = { note: "No recipient email on invoice" };
     if (to) {
-      emailResult = await sendResolutionEmail({
-        to,
-        subject: "Invoice resolution — payment and remittance",
-        textBody: intro + draft,
-        paymentLinks,
-      });
+      try {
+        emailResult = await sendResolutionEmail({
+          to,
+          subject: "Invoice resolution — payment and remittance",
+          textBody: intro + draft,
+          paymentLinks,
+        });
+      } catch (emailErr) {
+        return executeResolutionSoftFailure(s, emailErr);
+      }
     }
 
     const nextStep = step(
@@ -415,32 +480,28 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
       "success"
     );
     const aiSteps = [...s.aiSteps, nextStep];
-    await persistAiSteps(s.resolutionId, aiSteps);
 
-    /** Mark human review complete once recovery email + links step has run (approved path). */
+    try {
+      await persistAiSteps(s.resolutionId, aiSteps);
+    } catch (pe) {
+      return executeResolutionSoftFailure(s, pe);
+    }
+
     if (s.resolutionId) {
-      const supabaseExec = createSupabaseAdminClient();
-      const { error: hrErr } = await supabaseExec
-        .from("resolutions")
-        .update({ human_reviewed: true })
-        .eq("id", s.resolutionId);
-      if (hrErr) {
-        const failSteps = [
-          ...aiSteps,
-          step(
-            "execute_resolution",
-            { error: `human_reviewed: ${hrErr.message}` },
-            "failed"
-          ),
-        ];
-        await persistAiSteps(s.resolutionId, failSteps);
-        return {
-          snapshot: {
-            ...s,
-            status: "failed",
-            aiSteps: failSteps,
-          },
-        };
+      try {
+        const supabaseExec = createSupabaseAdminClient();
+        const { error: hrErr } = await supabaseExec
+          .from("resolutions")
+          .update({ human_reviewed: true })
+          .eq("id", s.resolutionId);
+        if (hrErr) {
+          return executeResolutionSoftFailure(
+            s,
+            new Error(`human_reviewed: ${hrErr.message}`)
+          );
+        }
+      } catch (hrThrown) {
+        return executeResolutionSoftFailure(s, hrThrown);
       }
     }
 
@@ -453,41 +514,7 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
       },
     };
   } catch (e) {
-    console.error("[execute_resolution] email/payment step failed:", e);
-
-    const errDetail = e instanceof Error ? e.message : String(e);
-    const failStep = step(
-      "execute_resolution",
-      {
-        error: errDetail,
-        userMessage: EXECUTION_WARNING_USER_MSG,
-      },
-      "failed"
-    );
-    const aiSteps = [...s.aiSteps, failStep];
-    await persistAiSteps(s.resolutionId, aiSteps);
-
-    if (s.resolutionId) {
-      const supabaseExec = createSupabaseAdminClient();
-      await supabaseExec
-        .from("resolutions")
-        .update({
-          human_reviewed: true,
-          outcome_status: "approved",
-          ai_steps: JSON.parse(JSON.stringify(aiSteps)) as unknown[],
-        })
-        .eq("id", s.resolutionId);
-    }
-
-    return {
-      snapshot: {
-        ...s,
-        status: "executing",
-        amountRecovered: s.amountRecovered ?? s.amountAtStake,
-        aiSteps,
-        executionWarning: EXECUTION_WARNING_USER_MSG,
-      },
-    };
+    return executeResolutionSoftFailure(s, e);
   }
 }
 
@@ -497,64 +524,105 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
 
 async function logOutcomeNode(state: GraphState): Promise<GraphState> {
   const s = state.snapshot;
-  const supabase = createSupabaseAdminClient();
   const resolvedAt = new Date().toISOString();
   const amountRecovered = s.amountRecovered ?? s.amountAtStake;
   const executionWarning = s.executionWarning;
 
-  const outcomeStatus = executionWarning ? ("approved" as const) : ("resolved" as const);
+  const outcomeStatus = executionWarning
+    ? ("approved_with_error" as const)
+    : ("resolved" as const);
 
-  const update = {
-    ai_steps: s.aiSteps,
-    outcome_status: outcomeStatus,
-    amount_recovered: amountRecovered,
-    resolved_at: resolvedAt,
-    human_reviewed: true,
-  };
+  try {
+    const supabase = createSupabaseAdminClient();
+    const update = {
+      ai_steps: s.aiSteps,
+      outcome_status: outcomeStatus,
+      amount_recovered: amountRecovered,
+      resolved_at: resolvedAt,
+      human_reviewed: true,
+    };
 
-  if (s.resolutionId) {
-    const { error } = await supabase
-      .from("resolutions")
-      .update(update)
-      .eq("id", s.resolutionId);
+    if (s.resolutionId) {
+      const { error } = await supabase
+        .from("resolutions")
+        .update(update)
+        .eq("id", s.resolutionId);
 
-    if (error) {
-      const aiSteps = [
-        ...s.aiSteps,
-        step("log_outcome", { error: error.message }, "failed"),
-      ];
+      if (error) {
+        console.error("log_outcome: resolutions update failed", error);
+        const aiSteps = [
+          ...s.aiSteps,
+          step("log_outcome", { error: error.message }, "failed"),
+        ];
+        try {
+          await persistAiSteps(s.resolutionId, aiSteps);
+        } catch (pe) {
+          console.error("log_outcome: persistAiSteps failed", pe);
+        }
+        return {
+          snapshot: {
+            ...s,
+            status: "completed",
+            amountRecovered,
+            aiSteps,
+            executionWarning:
+              s.executionWarning ?? EXECUTION_WARNING_USER_MSG,
+          },
+        };
+      }
+
+      try {
+        await supabase
+          .from("invoices")
+          .update({ status: executionWarning ? "resolving" : "resolved" })
+          .eq("id", s.invoiceId);
+      } catch (invErr) {
+        console.error("log_outcome: invoice update failed", invErr);
+      }
+    }
+
+    const nextStep = step(
+      "log_outcome",
+      { resolved_at: resolvedAt, amount_recovered: amountRecovered },
+      "success"
+    );
+    const aiSteps = [...s.aiSteps, nextStep];
+    try {
       await persistAiSteps(s.resolutionId, aiSteps);
+    } catch (pe) {
+      console.error("log_outcome: persistAiSteps failed", pe);
       return {
         snapshot: {
           ...s,
-          status: "failed",
-          aiSteps,
+          status: "completed",
+          amountRecovered,
+          aiSteps: s.aiSteps,
+          executionWarning:
+            s.executionWarning ?? EXECUTION_WARNING_USER_MSG,
         },
       };
     }
 
-    await supabase
-      .from("invoices")
-      .update({ status: executionWarning ? "resolving" : "resolved" })
-      .eq("id", s.invoiceId);
+    return {
+      snapshot: {
+        ...s,
+        status: "completed",
+        amountRecovered,
+        aiSteps,
+      },
+    };
+  } catch (e) {
+    console.error("log_outcome failed:", e);
+    return {
+      snapshot: {
+        ...s,
+        status: "completed",
+        amountRecovered,
+        aiSteps: s.aiSteps,
+        executionWarning: s.executionWarning ?? EXECUTION_WARNING_USER_MSG,
+      },
+    };
   }
-
-  const nextStep = step(
-    "log_outcome",
-    { resolved_at: resolvedAt, amount_recovered: amountRecovered },
-    "success"
-  );
-  const aiSteps = [...s.aiSteps, nextStep];
-  await persistAiSteps(s.resolutionId, aiSteps);
-
-  return {
-    snapshot: {
-      ...s,
-      status: "completed",
-      amountRecovered,
-      aiSteps,
-    },
-  };
 }
 
 function buildPhaseOneGraph() {

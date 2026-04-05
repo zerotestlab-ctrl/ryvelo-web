@@ -80,6 +80,8 @@ function statusLabel(outcome: string | null): string {
       return "Resolved";
     case "approved":
       return "Approved";
+    case "approved_with_error":
+      return "Approved (error)";
     case "partial":
       return "Partial";
     case "failed":
