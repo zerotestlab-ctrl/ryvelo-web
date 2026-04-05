@@ -67,14 +67,14 @@ export function UpgradeSubscriptionButtons({
           href={PAYSTACK_CHECKOUT_STARTER}
           className="h-11 min-w-[200px] justify-center px-5 sm:h-12"
         >
-          Starter — ₦9,900/mo
+          Starter — $6/mo
         </CheckoutLink>
         <CheckoutLink
           href={PAYSTACK_CHECKOUT_PRO}
           highlight
           className="h-11 min-w-[220px] justify-center px-5 shadow-lg shadow-accent/20 sm:h-12"
         >
-          Pro (Recommended) — ₦24,900/mo
+          Pro (Recommended) — $15/mo
         </CheckoutLink>
       </div>
     );
@@ -83,14 +83,14 @@ export function UpgradeSubscriptionButtons({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <CheckoutLink href={PAYSTACK_CHECKOUT_STARTER} className="h-9 px-3 text-xs">
-        Starter · ₦9,900/mo
+        Starter · $6/mo
       </CheckoutLink>
       <CheckoutLink
         href={PAYSTACK_CHECKOUT_PRO}
         highlight
         className="h-9 px-3 text-xs"
       >
-        Pro · ₦24,900/mo
+        Pro · $15/mo
       </CheckoutLink>
     </div>
   );
