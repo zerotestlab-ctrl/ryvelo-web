@@ -75,6 +75,28 @@ function formatSupabaseWriteError(
   return parts.join(" · ");
 }
 
+/** Normalize ISO or date strings for Postgres `date` RPC parameters. */
+function toPgDateString(value: string | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+function shouldFallbackToSequentialIngestRpc(error: {
+  message?: string;
+  code?: string;
+}): boolean {
+  const msg = (error.message ?? "").toLowerCase();
+  if (msg.includes("could not find") && msg.includes("function")) return true;
+  if (msg.includes("ingest_create_invoice_and_resolution")) return true;
+  if (error.code === "42883") return true;
+  return false;
+}
+
 function validatePayload(body: unknown): IngestInvoicePayload | IngestErrorResponse {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, error: "Invalid JSON body", code: "VALIDATION" };
@@ -190,90 +212,154 @@ export async function runIngestInvoice(opts: {
     },
   };
 
-  console.log(`${LOG} insert invoice…`);
-  const { data: invoiceRow, error: invError } = await supabase
-    .from("invoices")
-    .insert({
-      user_id: profileId,
-      source: payload.source,
-      raw_data: mergedRaw,
-      client_name: payload.client_name ?? null,
-      client_email: payload.client_email ?? null,
-      amount: payload.amount ?? null,
-      currency: payload.currency ?? "USD",
-      invoice_date: payload.invoice_date ?? null,
-      due_date: payload.due_date ?? null,
-      status: invoiceStatus,
-    })
-    .select("id")
-    .single();
+  const aiStepsMeta = {
+    provider: source,
+    model:
+      source === "openai"
+        ? process.env.OPENAI_INGEST_MODEL ?? "gpt-4o-mini"
+        : source === "anthropic"
+          ? process.env.ANTHROPIC_INGEST_MODEL ?? "claude-3-5-haiku-20241022"
+          : "heuristic",
+    overall_risk: analysis.overall_risk,
+  };
 
-  if (invError || !invoiceRow) {
-    console.error(`${LOG} insert invoice failed`, invError);
-    return {
-      ok: false,
-      error: formatSupabaseWriteError(
-        invError,
-        "Could not save the invoice to the database."
-      ),
-      code: "DATABASE",
-    };
+  const ingestedAtIso = new Date().toISOString();
+
+  console.log(`${LOG} persist invoice + resolution…`);
+
+  const rpcArgs = {
+    p_user_id: profileId,
+    p_source: payload.source,
+    p_raw_data: mergedRaw as Record<string, unknown>,
+    p_client_name: payload.client_name ?? null,
+    p_client_email: payload.client_email ?? null,
+    p_amount: payload.amount ?? null,
+    p_currency: payload.currency ?? "USD",
+    p_invoice_date: toPgDateString(payload.invoice_date ?? undefined),
+    p_due_date: toPgDateString(payload.due_date ?? undefined),
+    p_status: invoiceStatus,
+    p_issues_detected: analysis.issues,
+    p_ai_steps: aiStepsMeta,
+  };
+
+  const { data: rpcRows, error: rpcError } = await supabase.rpc(
+    "ingest_create_invoice_and_resolution",
+    rpcArgs
+  );
+
+  let invoiceId: string | null = null;
+  let resolutionId: string | null = null;
+
+  if (!rpcError && rpcRows != null) {
+    const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+    const inv = row as { invoice_id?: string; resolution_id?: string };
+    if (inv?.invoice_id && inv?.resolution_id) {
+      invoiceId = inv.invoice_id;
+      resolutionId = inv.resolution_id;
+      console.log("Invoice created with ID:", invoiceId);
+      console.log(`${LOG} atomic RPC success`, { invoiceId, resolutionId });
+    }
   }
 
-  const invoiceId = invoiceRow.id as string;
-  console.log(`${LOG} invoice row created`, { invoiceId });
-
-  console.log(`${LOG} insert resolution…`);
-  const { data: resRow, error: resError } = await supabase
-    .from("resolutions")
-    .insert({
-      invoice_id: invoiceId,
-      issues_detected: analysis.issues,
-      ai_steps: {
-        provider: source,
-        model:
-          source === "openai"
-            ? process.env.OPENAI_INGEST_MODEL ?? "gpt-4o-mini"
-            : source === "anthropic"
-              ? process.env.ANTHROPIC_INGEST_MODEL ?? "claude-3-5-haiku-20241022"
-              : "heuristic",
-        overall_risk: analysis.overall_risk,
-      },
-      outcome_status: "pending",
-      human_reviewed: false,
-    })
-    .select("id")
-    .single();
-
-  if (resError || !resRow) {
-    console.error(`${LOG} insert resolution failed`, resError);
-    const { error: delErr } = await supabase
-      .from("invoices")
-      .delete()
-      .eq("id", invoiceId);
-    if (delErr) {
-      console.error(`${LOG} rollback invoice delete failed`, delErr);
+  if (!invoiceId || !resolutionId) {
+    if (rpcError && !shouldFallbackToSequentialIngestRpc(rpcError)) {
+      console.error(`${LOG} atomic RPC failed`, rpcError);
+      return {
+        ok: false,
+        error: formatSupabaseWriteError(
+          rpcError,
+          "Could not save the invoice and resolution to the database."
+        ),
+        code: "DATABASE",
+      };
     }
-    return {
-      ok: false,
-      error: formatSupabaseWriteError(
-        resError,
-        "Invoice was saved but creating the resolution failed. The invoice row was removed."
-      ),
-      code: "DATABASE",
-    };
+    if (rpcError && shouldFallbackToSequentialIngestRpc(rpcError)) {
+      console.warn(
+        `${LOG} RPC missing or outdated; falling back to sequential inserts`,
+        rpcError.message
+      );
+    }
+
+    console.log(`${LOG} sequential insert: invoice…`);
+    const { data: invoiceRow, error: invError } = await supabase
+      .from("invoices")
+      .insert({
+        user_id: profileId,
+        source: payload.source,
+        raw_data: mergedRaw,
+        client_name: payload.client_name ?? null,
+        client_email: payload.client_email ?? null,
+        amount: payload.amount ?? null,
+        currency: payload.currency ?? "USD",
+        invoice_date: payload.invoice_date ?? null,
+        due_date: payload.due_date ?? null,
+        status: invoiceStatus,
+        ingested_at: ingestedAtIso,
+      })
+      .select("id")
+      .single();
+
+    if (invError || !invoiceRow) {
+      console.error(`${LOG} insert invoice failed`, invError);
+      return {
+        ok: false,
+        error: formatSupabaseWriteError(
+          invError,
+          "Could not save the invoice to the database."
+        ),
+        code: "DATABASE",
+      };
+    }
+
+    invoiceId = invoiceRow.id as string;
+    console.log("Invoice created with ID:", invoiceId);
+    console.log(`${LOG} invoice row created`, { invoiceId });
+
+    console.log(`${LOG} sequential insert: resolution…`);
+    const { data: resRow, error: resError } = await supabase
+      .from("resolutions")
+      .insert({
+        invoice_id: invoiceId,
+        issues_detected: analysis.issues,
+        ai_steps: aiStepsMeta,
+        outcome_status: "pending",
+        human_reviewed: false,
+      })
+      .select("id")
+      .single();
+
+    if (resError || !resRow) {
+      console.error(`${LOG} insert resolution failed`, resError);
+      const { error: delErr } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("id", invoiceId);
+      if (delErr) {
+        console.error(`${LOG} rollback invoice delete failed`, delErr);
+      }
+      return {
+        ok: false,
+        error: formatSupabaseWriteError(
+          resError,
+          "Invoice was saved but creating the resolution failed. The invoice row was removed."
+        ),
+        code: "DATABASE",
+      };
+    }
+
+    resolutionId = resRow.id as string;
   }
 
   console.log(`${LOG} success`, {
     invoiceId,
-    resolutionId: resRow.id,
+    resolutionId,
     status: invoiceStatus,
   });
 
   return {
     ok: true,
-    invoice_id: invoiceId,
-    resolution_id: resRow.id as string,
+    invoice_id: invoiceId!,
+    resolution_id: resolutionId!,
     status: invoiceStatus,
     analysis,
     analysis_source: source,

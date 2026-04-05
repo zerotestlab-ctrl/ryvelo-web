@@ -353,7 +353,7 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
         "id, client_name, amount, currency, due_date, status, ingested_at, invoice_date"
       )
       .eq("user_id", resolvedProfileId)
-      .order("ingested_at", { ascending: false });
+      .order("ingested_at", { ascending: false, nullsFirst: false });
 
     if (invErr) {
       console.error("[getDashboardData] invoices query failed:", invErr);

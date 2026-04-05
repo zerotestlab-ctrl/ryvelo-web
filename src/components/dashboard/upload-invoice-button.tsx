@@ -134,6 +134,9 @@ export function UploadInvoiceButton({ className, disabled }: Props) {
         router.prefetch("/resolutions");
         router.prefetch("/invoices");
         router.refresh();
+        queueMicrotask(() => {
+          router.refresh();
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Network error";
         toast.error("Upload failed", { description: msg });

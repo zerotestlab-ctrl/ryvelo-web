@@ -1,8 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { runIngestInvoice } from "@/lib/ingest/run-ingest";
+import { revalidateAfterIngest } from "@/lib/ingest/revalidate-after-ingest";
 import type { IngestErrorResponse } from "@/lib/ingest/types";
 
 export const runtime = "nodejs";
@@ -24,12 +24,6 @@ function statusFromError(result: IngestErrorResponse): number {
     default:
       return 500;
   }
-}
-
-function revalidateIngestPaths() {
-  revalidatePath("/dashboard");
-  revalidatePath("/resolutions");
-  revalidatePath("/invoices");
 }
 
 export async function POST(req: Request) {
@@ -88,7 +82,7 @@ export async function POST(req: Request) {
       invoice_id: result.invoice_id,
       resolution_id: result.resolution_id,
     });
-    revalidateIngestPaths();
+    revalidateAfterIngest();
 
     return NextResponse.json(result);
   } catch (e) {

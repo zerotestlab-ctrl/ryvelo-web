@@ -150,7 +150,7 @@ export async function getResolutionListForClerkUser(
       `
       )
       .in("invoice_id", invoiceIds)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false, nullsFirst: false });
 
     if (error) {
       return { rows: [], error: error.message };
