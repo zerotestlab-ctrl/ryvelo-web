@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/app-shell/sidebar";
 import { TopBar } from "@/components/app-shell/topbar";
 import { getSubscriptionPlanLabelForClerkUser } from "@/lib/supabase/admin";
 
-/** Authenticated shell. Sign-in/up URLs and post-auth redirects are set on `ClerkProvider` in `app/layout.tsx` via `NEXT_PUBLIC_CLERK_*`. */
+/** Authenticated shell. Clerk URLs are hard-coded for production on eternova.xyz in `clerk-public-config.ts`. */
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const { userId } = await auth();

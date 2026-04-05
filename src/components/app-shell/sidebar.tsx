@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { RyveloLogo } from "@/components/brand/ryvelo-logo";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -26,14 +27,8 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-dvh w-[264px] flex-col border-r border-border bg-[#071e34]">
-      <div className="flex h-14 items-center gap-2 px-4">
-        <div className="h-8 w-8 rounded-lg bg-accent/20 ring-1 ring-accent/30" />
-        <div className="leading-tight">
-          <div className="text-sm font-semibold tracking-tight text-foreground">
-            Ryvelo
-          </div>
-          <div className="text-xs text-muted-foreground">Operations</div>
-        </div>
+      <div className="flex h-14 items-center px-3">
+        <RyveloLogo href="/dashboard" tagline="Operations" />
       </div>
       <Separator className="bg-border/70" />
 

@@ -28,12 +28,16 @@ export function ResolutionTimeline({ steps, className }: Props) {
         aria-hidden
       />
       <ul className="space-y-0">
-        {steps.map((s, idx) => {
+        {steps
+          .filter((s): s is ResolutionStep => s != null && typeof s === "object")
+          .map((s, idx) => {
+          const stepName = typeof s.step === "string" ? s.step : "step";
+          const ts = typeof s.timestamp === "string" ? s.timestamp : "";
           const ok = s.status === "success";
           const pending = s.status === "pending";
           const failed = s.status === "failed";
           return (
-            <li key={`${s.step}-${s.timestamp}-${idx}`} className="relative pb-8 last:pb-0">
+            <li key={`${stepName}-${ts}-${idx}`} className="relative pb-8 last:pb-0">
               <div
                 className={cn(
                   "absolute left-[-22px] top-1 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 bg-background ring-4 ring-card",
@@ -54,14 +58,14 @@ export function ResolutionTimeline({ steps, className }: Props) {
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="text-sm font-medium text-foreground">
-                    {stepLabel(s.step)}
+                    {stepLabel(stepName)}
                   </div>
                   <div className="mt-1 max-h-32 overflow-auto rounded-md border border-border/60 bg-black/20 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
                     {formatOutput(s.aiOutput)}
                   </div>
                 </div>
                 <time className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-right">
-                  {formatTs(s.timestamp)}
+                  {formatTs(ts)}
                 </time>
               </div>
             </li>
@@ -73,6 +77,7 @@ export function ResolutionTimeline({ steps, className }: Props) {
 }
 
 function formatTs(iso: string): string {
+  if (!iso) return "—";
   try {
     const d = new Date(iso);
     return d.toLocaleString("en-US", {

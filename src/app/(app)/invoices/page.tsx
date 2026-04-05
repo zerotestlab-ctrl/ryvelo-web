@@ -17,8 +17,7 @@ export default async function InvoicesPage() {
             Invoices
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Open balances and status from your live Supabase invoices (newest
-            ingested first).
+            Open balances and status from your invoices (newest first).
           </p>
         </div>
         {hasProfile && userId ? (
@@ -33,7 +32,7 @@ export default async function InvoicesPage() {
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
           role="status"
         >
-          Could not load invoices: {fetchError}
+          {fetchError}
         </div>
       ) : null}
 
@@ -49,7 +48,7 @@ export default async function InvoicesPage() {
       <RecentInvoicesDataTable
         data={invoices}
         showResolveColumn={false}
-        emptyMessage="No invoices yet. Ingest an invoice from the dashboard."
+        emptyMessage="No invoices yet. Invoices appear when your ingest pipeline or API creates them."
       />
     </div>
   );

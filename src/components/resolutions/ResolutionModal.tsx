@@ -56,8 +56,6 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState(false);
 
-  const draftFromSteps = extractDraft(row?.aiSteps ?? []);
-
   function close() {
     setError(null);
     setEditDraft(false);
@@ -92,8 +90,12 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
     });
   }
 
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
 
+  const workflowSteps = Array.isArray(row.aiSteps) ? row.aiSteps : [];
+  const draftFromSteps = extractDraft(workflowSteps);
   const lines = issueLines(row.issuesDetected);
   const canAct =
     row.outcomeStatus === "pending" && !row.humanReviewed;
@@ -141,7 +143,7 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Workflow
             </h3>
-            <ResolutionTimeline steps={row.aiSteps} />
+            <ResolutionTimeline steps={workflowSteps} />
           </section>
 
           {editDraft && (

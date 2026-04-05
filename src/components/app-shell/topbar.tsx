@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { RyveloLogo } from "@/components/brand/ryvelo-logo";
 import { UpgradeSubscriptionButtons } from "@/components/subscription/upgrade-button";
 import { cn } from "@/lib/utils";
 
@@ -23,20 +24,29 @@ export function TopBar({
   const display = formatUsd(cashRecoveredThisMonth, 0);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/80 px-5 backdrop-blur-md supports-[backdrop-filter]:bg-background/55">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 truncate text-sm">
-          <span className="text-muted-foreground">
-            Cash Recovered This Month:
-          </span>
-          <span
-            className={cn(
-              "font-semibold tabular-nums tracking-tight",
-              "text-accent"
-            )}
-          >
-            {display}
-          </span>
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/55 sm:px-5">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <RyveloLogo href="/dashboard" compact className="shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="hidden items-baseline gap-2 truncate text-sm sm:flex">
+            <span className="text-muted-foreground">
+              Cash Recovered This Month:
+            </span>
+            <span
+              className={cn(
+                "font-semibold tabular-nums tracking-tight",
+                "text-accent"
+              )}
+            >
+              {display}
+            </span>
+          </div>
+          <p className="truncate text-right text-[11px] text-muted-foreground sm:hidden">
+            <span className="font-semibold tabular-nums text-accent">
+              {display}
+            </span>
+            <span className="ml-1 opacity-80">recovered MTD</span>
+          </p>
         </div>
       </div>
 

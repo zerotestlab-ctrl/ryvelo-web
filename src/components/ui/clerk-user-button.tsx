@@ -3,6 +3,8 @@
 import { UserButton } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 
+import { clerkPublicAuthConfig } from "@/lib/clerk-public-config";
+
 export default function ClerkUserButton() {
   return (
     <UserButton
@@ -17,6 +19,7 @@ export default function ClerkUserButton() {
           avatarBox: "h-8 w-8 rounded-md ring-1 ring-white/10",
         },
       }}
+      afterSignOutUrl={clerkPublicAuthConfig.signInUrl}
     />
   );
 }

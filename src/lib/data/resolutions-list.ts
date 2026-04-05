@@ -1,4 +1,8 @@
-import { createSupabaseAdminClient, getProfileIdForClerkUser } from "@/lib/supabase/admin";
+import {
+  createSupabaseAdminClient,
+  getProfileIdForClerkUser,
+  isSupabaseEnvConfigured,
+} from "@/lib/supabase/admin";
 import type { ResolutionStep } from "@/lib/agents/types";
 
 export type ResolutionListRow = {
@@ -91,6 +95,14 @@ export async function getResolutionListForClerkUser(
     return { rows: [], error: null };
   }
 
+  if (!isSupabaseEnvConfigured()) {
+    return {
+      rows: [],
+      error:
+        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+    };
+  }
+
   try {
     const profileId = await getProfileIdForClerkUser(clerkUserId);
     if (!profileId) {
@@ -158,7 +170,10 @@ export async function getResolutionListForClerkUser(
       const currency =
         typeof inv?.currency === "string" ? inv.currency : "USD";
       const issues = row.issues_detected;
-      const steps = (row.ai_steps as ResolutionStep[] | null) ?? [];
+      const rawSteps = row.ai_steps;
+      const steps: ResolutionStep[] = Array.isArray(rawSteps)
+        ? (rawSteps as ResolutionStep[])
+        : [];
       const outcome = typeof row.outcome_status === "string" ? row.outcome_status : "pending";
       const humanReviewed = Boolean(row.human_reviewed);
 
@@ -182,7 +197,7 @@ export async function getResolutionListForClerkUser(
 
     return { rows, error: null };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Failed to load resolutions";
-    return { rows: [], error: msg };
+    console.error("[getResolutionListForClerkUser]", e);
+    return { rows: [], error: null };
   }
 }

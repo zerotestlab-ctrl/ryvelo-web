@@ -1,4 +1,8 @@
-import { createSupabaseAdminClient, getProfileRowForClerkUser } from "@/lib/supabase/admin";
+import {
+  createSupabaseAdminClient,
+  getProfileRowForClerkUser,
+  isSupabaseEnvConfigured,
+} from "@/lib/supabase/admin";
 import { formatSubscriptionPlanLabel } from "@/lib/subscription";
 import type { InvoiceRow } from "@/lib/data/invoice-types";
 import type { ResolutionTimelineItem } from "@/components/ui/resolution-timeline";
@@ -283,6 +287,18 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
     };
   }
 
+  if (!isSupabaseEnvConfigured()) {
+    return {
+      invoices: [],
+      resolutions: [],
+      fetchError:
+        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      hasProfile: false,
+      subscriptionPlanLabel: "Free",
+      metrics: emptyMetrics(),
+    };
+  }
+
   try {
     const profileRow = await getProfileRowForClerkUser(clerkUserId);
     if (!profileRow) {
@@ -418,11 +434,11 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
       metrics,
     };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Dashboard load failed";
+    console.error("[getDashboardData]", e);
     return {
       invoices: [],
       resolutions: [],
-      fetchError: msg,
+      fetchError: null,
       hasProfile: false,
       subscriptionPlanLabel: "Free",
       metrics: emptyMetrics(),

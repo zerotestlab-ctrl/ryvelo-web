@@ -6,7 +6,10 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { assertClerkPublishableKeyForProduction } from "@/lib/clerk-env";
 import { clerkPublicAuthConfig } from "@/lib/clerk-public-config";
+
+assertClerkPublishableKeyForProduction();
 
 const inter = Inter({
   variable: "--font-sans",

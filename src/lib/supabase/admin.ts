@@ -2,6 +2,13 @@ import { createClient } from "@supabase/supabase-js";
 
 import { formatSubscriptionPlanLabel } from "@/lib/subscription";
 
+/** True when URL and service role key are present (app can reach Supabase). */
+export function isSupabaseEnvConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  return Boolean(url && key);
+}
+
 /**
  * Service-role client for trusted server routes (Clerk session → explicit user scoping).
  * Never import in client components.

@@ -2,7 +2,6 @@ import { auth } from "@clerk/nextjs/server";
 
 import { CashVelocityChart } from "@/components/dashboard/cash-velocity-chart";
 import { RecentInvoicesDataTable } from "@/components/dashboard/recent-invoices-data-table";
-import { UploadTestInvoice } from "@/components/dashboard/upload-test-invoice";
 import { SubscriptionUpgradeCta } from "@/components/subscription/upgrade-button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { ResolutionTimeline } from "@/components/ui/resolution-timeline";
@@ -36,9 +35,7 @@ export default async function DashboardPage() {
             Cash recovered, resolution throughput, and open receivables.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Live metrics · Supabase
-        </p>
+        <p className="text-xs text-muted-foreground">Live metrics</p>
       </div>
 
       {fetchError ? (
@@ -46,8 +43,7 @@ export default async function DashboardPage() {
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
           role="status"
         >
-          Could not load live data: {fetchError}. Check Supabase env and
-          service role key.
+          {fetchError}
         </div>
       ) : null}
 
@@ -62,8 +58,6 @@ export default async function DashboardPage() {
       ) : null}
 
       <SubscriptionUpgradeCta planLabel={subscriptionPlanLabel} />
-
-      <UploadTestInvoice />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -98,7 +92,7 @@ export default async function DashboardPage() {
                 Recent invoices
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Newest ingested first (live Supabase).
+                Newest first · data from your Supabase account
               </p>
             </div>
             <span className="text-xs tabular-nums text-muted-foreground">
@@ -107,7 +101,7 @@ export default async function DashboardPage() {
           </div>
           <RecentInvoicesDataTable
             data={invoices}
-            emptyMessage="No invoices yet. Ingest an invoice on the dashboard to see it here."
+            emptyMessage="No invoices yet. Invoices from your ingest pipeline (e.g. POST /api/ingest) will appear here."
           />
         </div>
 
@@ -117,14 +111,15 @@ export default async function DashboardPage() {
               Recent resolutions
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Latest resolution activity (live Supabase).
+              Latest activity from your Supabase resolutions.
             </p>
           </div>
           {resolutions.length > 0 ? (
             <ResolutionTimeline items={resolutions} />
           ) : (
             <p className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-sm">
-              No resolutions yet. Ingest an invoice to create a resolution row.
+              No resolutions yet. Each ingested invoice creates a resolution row
+              automatically.
             </p>
           )}
         </div>

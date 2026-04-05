@@ -4,7 +4,7 @@ import { dark } from "@clerk/themes";
 import { clerkPublicAuthConfig } from "@/lib/clerk-public-config";
 
 export default function SignInPage() {
-  const { signInUrl, signUpUrl, signInFallbackRedirectUrl } =
+  const { signInPath, signUpUrl, signInFallbackRedirectUrl } =
     clerkPublicAuthConfig;
 
   return (
@@ -21,7 +21,7 @@ export default function SignInPage() {
               colorInputText: "#FFFFFF",
             },
           }}
-          path={signInUrl}
+          path={signInPath}
           routing="path"
           signUpUrl={signUpUrl}
           afterSignInUrl={signInFallbackRedirectUrl}

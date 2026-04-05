@@ -11,7 +11,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { formatAmount } from "@/lib/format";
 
 function ConfidenceCell({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
+  const safe = Number.isFinite(value) ? value : 0;
+  const pct = Math.round(Math.min(1, Math.max(0, safe)) * 100);
   return (
     <span className="tabular-nums text-foreground">
       {pct}%
@@ -115,7 +116,7 @@ export function ResolutionTable({ data }: Props) {
       <DataTable
         columns={columns}
         data={tableData}
-        emptyMessage="No resolutions yet. Ingest an invoice from the dashboard to create one."
+        emptyMessage="No resolutions yet. They appear when invoices are ingested (API or integration)."
         onRowClick={(r) => {
           setSelected(r);
           setOpen(true);
@@ -123,7 +124,7 @@ export function ResolutionTable({ data }: Props) {
       />
       <ResolutionModal
         row={selected}
-        open={open}
+        open={open && selected !== null}
         onOpenChange={(o) => {
           setOpen(o);
           if (!o) setSelected(null);

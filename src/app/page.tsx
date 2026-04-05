@@ -15,25 +15,21 @@ import {
   PAYSTACK_CHECKOUT_PRO,
   PAYSTACK_CHECKOUT_STARTER,
 } from "@/components/subscription/upgrade-button";
+import { RyveloLogo } from "@/components/brand/ryvelo-logo";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Ryvelo — Get paid faster on every cross-border invoice",
   description:
-    "Autonomous AI resolution for freelancers, creators & African exporters. Ingest, resolve, and collect with FX-aware workflows.",
+    "Autonomous resolution for freelancers, creators & African exporters. Ingest, resolve, and collect with FX-aware workflows.",
 };
 
 function Nav() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="text-[15px] font-semibold tracking-tight text-foreground sm:text-base"
-        >
-          Ryvelo
-        </Link>
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:h-16 sm:px-6 lg:px-8">
+        <RyveloLogo href="/" />
         <nav className="flex items-center gap-1 sm:gap-2">
           <Link
             href="#problem"
@@ -82,14 +78,11 @@ function Hero() {
         <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
       </div>
       <div className="mx-auto max-w-3xl text-center">
-        <h1 className="text-balance text-[1.65rem] font-semibold leading-snug tracking-tight text-foreground sm:text-4xl sm:leading-tight lg:text-[2.75rem] lg:leading-[1.12]">
-          Ryvelo —{" "}
-          <span className="bg-gradient-to-r from-foreground via-foreground to-accent bg-clip-text text-transparent">
-            Get paid faster on every cross-border invoice
-          </span>
+        <h1 className="text-balance text-[1.5rem] font-semibold leading-snug tracking-tight text-foreground sm:text-3xl sm:leading-tight lg:text-[2.35rem] lg:leading-[1.15]">
+          Ryvelo — Get paid faster on every cross-border invoice
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Autonomous AI resolution for freelancers, creators &amp; African
+          Autonomous resolution for freelancers, creators &amp; African
           exporters.
         </p>
         <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:justify-center">
@@ -188,7 +181,7 @@ const steps = [
   {
     n: "2",
     title: "Resolve",
-    desc: "AI-assisted workflows flag FX, tax, and compliance gaps, then propose clear recovery steps you can approve.",
+    desc: "Guided workflows surface FX, tax, and compliance gaps, then propose clear recovery steps you can approve.",
     icon: Zap,
   },
   {
