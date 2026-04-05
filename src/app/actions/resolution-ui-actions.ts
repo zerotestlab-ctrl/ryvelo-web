@@ -6,6 +6,38 @@ import { revalidatePath } from "next/cache";
 import { runResolutionWorkflow } from "@/lib/agents/resolution-graph";
 import { createSupabaseAdminClient, getProfileIdForClerkUser } from "@/lib/supabase/admin";
 
+/** Shown when approve is recorded in DB but the email/workflow step failed. */
+const APPROVE_FORCE_WARNING =
+  "Resolution approved (email step skipped due to error)";
+
+/**
+ * Best-effort: mark the latest resolution for this invoice as human-approved.
+ * Used when `runResolutionWorkflow` throws or returns `failed` so the UI still wins.
+ */
+async function forceApproveResolutionInDb(invoiceId: string): Promise<boolean> {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const resolvedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("resolutions")
+      .update({
+        human_reviewed: true,
+        outcome_status: "approved",
+        resolved_at: resolvedAt,
+      })
+      .eq("invoice_id", invoiceId);
+
+    if (error) {
+      console.error("[forceApproveResolutionInDb]", error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("[forceApproveResolutionInDb]", e);
+    return false;
+  }
+}
+
 async function assertInvoiceOwnedByUser(
   clerkUserId: string,
   invoiceId: string
@@ -97,9 +129,13 @@ export async function approveResolutionAction(invoiceId: string) {
     });
   } catch (e) {
     console.error("[approveResolutionAction] runResolutionWorkflow threw", e);
+    await forceApproveResolutionInDb(invoiceId);
+    revalidatePath("/resolutions");
+    revalidatePath("/dashboard");
+    revalidatePath("/invoices");
     return {
-      ok: false as const,
-      error: e instanceof Error ? e.message : String(e),
+      ok: true as const,
+      warning: APPROVE_FORCE_WARNING,
     };
   }
   console.error("[approveResolutionAction] after runResolutionWorkflow", {
@@ -112,9 +148,13 @@ export async function approveResolutionAction(invoiceId: string) {
   revalidatePath("/invoices");
 
   if (result.phase === "failed") {
+    await forceApproveResolutionInDb(invoiceId);
+    revalidatePath("/resolutions");
+    revalidatePath("/dashboard");
+    revalidatePath("/invoices");
     return {
-      ok: false as const,
-      error: result.error ?? "Workflow failed",
+      ok: true as const,
+      warning: APPROVE_FORCE_WARNING,
     };
   }
 

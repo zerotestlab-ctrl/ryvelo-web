@@ -73,6 +73,19 @@ function step(
   };
 }
 
+/** Supabase JSONB may be null, object, or malformed — prevents "is not iterable" on spread. */
+function normalizeAiSteps(raw: unknown): ResolutionStep[] {
+  return Array.isArray(raw) ? (raw as ResolutionStep[]) : [];
+}
+
+function normalizeSnapshot(s: ResolutionState): ResolutionState {
+  return {
+    ...s,
+    aiSteps: normalizeAiSteps(s.aiSteps),
+    issues: Array.isArray(s.issues) ? s.issues : [],
+  };
+}
+
 /** Persist full ai_steps JSONB after each node (Supabase). */
 async function persistAiSteps(
   resolutionId: string | undefined,
@@ -91,7 +104,7 @@ async function persistAiSteps(
 // ─────────────────────────────────────────────────────────────
 
 async function detectIssuesNode(state: GraphState): Promise<GraphState> {
-  const s = state.snapshot;
+  const s = normalizeSnapshot(state.snapshot);
   try {
     const { issues, analysis, analysisSource } = await analyzeInvoice(
       s.rawInvoice
@@ -155,7 +168,7 @@ function heuristicProposal(s: ResolutionState): ProposedResolution {
 // ─────────────────────────────────────────────────────────────
 
 async function proposeResolutionNode(state: GraphState): Promise<GraphState> {
-  const s = state.snapshot;
+  const s = normalizeSnapshot(state.snapshot);
   if (s.status === "failed") {
     return { snapshot: s };
   }
@@ -262,13 +275,13 @@ Use outcome language only. paymentLink may be empty string if unknown.`;
 // ─────────────────────────────────────────────────────────────
 
 async function humanReviewNode(state: GraphState): Promise<GraphState> {
-  const s = state.snapshot;
+  const s = normalizeSnapshot(state.snapshot);
   if (s.status === "failed") {
     return { snapshot: s };
   }
 
   const supabase = createSupabaseAdminClient();
-  const issuesJson = s.issues.map((i) => ({
+  const issuesJson = (Array.isArray(s.issues) ? s.issues : []).map((i) => ({
     type: i.type,
     description: i.description,
     confidence: i.confidence,
@@ -277,7 +290,7 @@ async function humanReviewNode(state: GraphState): Promise<GraphState> {
 
   const patch = {
     issues_detected: issuesJson,
-    ai_steps: s.aiSteps,
+    ai_steps: normalizeAiSteps(s.aiSteps),
     outcome_status: "pending" as const,
   };
 
@@ -341,6 +354,7 @@ async function executeResolutionSoftFailure(
 ): Promise<GraphState> {
   console.error("Execute resolution failed:", err);
 
+  const base = normalizeSnapshot(s);
   const errDetail = err instanceof Error ? err.message : String(err);
   const failStep = step(
     "execute_resolution",
@@ -350,15 +364,15 @@ async function executeResolutionSoftFailure(
     },
     "failed"
   );
-  const aiSteps = [...s.aiSteps, failStep];
+  const aiSteps = [...base.aiSteps, failStep];
 
   try {
-    await persistAiSteps(s.resolutionId, aiSteps);
+    await persistAiSteps(base.resolutionId, aiSteps);
   } catch (pe) {
     console.error("Execute resolution failed: persistAiSteps", pe);
   }
 
-  if (s.resolutionId) {
+  if (base.resolutionId) {
     try {
       const supabaseExec = createSupabaseAdminClient();
       const { error: dbErr } = await supabaseExec
@@ -368,7 +382,7 @@ async function executeResolutionSoftFailure(
           outcome_status: "approved_with_error",
           ai_steps: JSON.parse(JSON.stringify(aiSteps)) as unknown[],
         })
-        .eq("id", s.resolutionId);
+        .eq("id", base.resolutionId);
       if (dbErr) {
         console.error("Execute resolution failed: resolutions update", dbErr);
       }
@@ -379,9 +393,9 @@ async function executeResolutionSoftFailure(
 
   return {
     snapshot: {
-      ...s,
+      ...base,
       status: "executing",
-      amountRecovered: s.amountRecovered ?? s.amountAtStake,
+      amountRecovered: base.amountRecovered ?? base.amountAtStake,
       aiSteps,
       executionWarning: EXECUTION_WARNING_USER_MSG,
     },
@@ -389,7 +403,7 @@ async function executeResolutionSoftFailure(
 }
 
 async function executeResolutionNode(state: GraphState): Promise<GraphState> {
-  const s = state.snapshot;
+  const s = normalizeSnapshot(state.snapshot);
   if (!s.humanApproved && !s.skipHumanGate) {
     const aiSteps = [
       ...s.aiSteps,
@@ -523,7 +537,7 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
 // ─────────────────────────────────────────────────────────────
 
 async function logOutcomeNode(state: GraphState): Promise<GraphState> {
-  const s = state.snapshot;
+  const s = normalizeSnapshot(state.snapshot);
   const resolvedAt = new Date().toISOString();
   const amountRecovered = s.amountRecovered ?? s.amountAtStake;
   const executionWarning = s.executionWarning;
@@ -535,7 +549,7 @@ async function logOutcomeNode(state: GraphState): Promise<GraphState> {
   try {
     const supabase = createSupabaseAdminClient();
     const update = {
-      ai_steps: s.aiSteps,
+      ai_steps: normalizeAiSteps(s.aiSteps),
       outcome_status: outcomeStatus,
       amount_recovered: amountRecovered,
       resolved_at: resolvedAt,
@@ -804,7 +818,7 @@ async function loadContextForInvoice(
     };
   }
 
-  const existingSteps = (res?.ai_steps as ResolutionStep[] | null) ?? [];
+  const existingSteps = normalizeAiSteps(res?.ai_steps);
   const issues = issuesFromDb(res?.issues_detected);
 
   return {
@@ -849,7 +863,9 @@ export async function runResolutionWorkflow(
   }
 ): Promise<ResolutionWorkflowResult> {
   if (options?.humanApproved === true) {
-    let state = await loadContextForInvoice(invoiceId, "resume_execute");
+    let state = normalizeSnapshot(
+      await loadContextForInvoice(invoiceId, "resume_execute")
+    );
     state = {
       ...state,
       humanApproved: true,
@@ -913,10 +929,12 @@ export async function runResolutionWorkflow(
     };
   }
 
-  let state = await loadContextForInvoice(invoiceId, "fresh", {
-    runUnattended: options?.runUnattended === true,
-    rawOverlay: options?.rawOverlay,
-  });
+  let state = normalizeSnapshot(
+    await loadContextForInvoice(invoiceId, "fresh", {
+      runUnattended: options?.runUnattended === true,
+      rawOverlay: options?.rawOverlay,
+    })
+  );
 
   const skip =
     state.skipHumanGate === true ||

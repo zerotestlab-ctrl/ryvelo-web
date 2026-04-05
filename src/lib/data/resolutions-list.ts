@@ -174,7 +174,8 @@ export async function getResolutionListForClerkUser(
       const amount = inv?.amount != null ? Number(inv.amount) : 0;
       const currency =
         typeof inv?.currency === "string" ? inv.currency : "USD";
-      const issues = row.issues_detected;
+      const issuesRaw = row.issues_detected;
+      const issues = Array.isArray(issuesRaw) ? issuesRaw : [];
       const rawSteps = row.ai_steps;
       const steps: ResolutionStep[] = Array.isArray(rawSteps)
         ? (rawSteps as ResolutionStep[])
@@ -187,8 +188,8 @@ export async function getResolutionListForClerkUser(
         invoiceId,
         invoiceRef: formatInvoiceRef(invoiceId, rawData),
         clientName,
-        issueBadges: badgesFromIssues(issues),
-        confidence: confidenceFromIssues(issues),
+        issueBadges: badgesFromIssues(issuesRaw),
+        confidence: confidenceFromIssues(issuesRaw),
         amountAtStake: amount,
         currency,
         statusLabel: statusLabel(outcome),

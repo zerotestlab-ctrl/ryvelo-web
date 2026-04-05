@@ -84,9 +84,7 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
         }
         close();
         if (res.warning) {
-          toast.warning("Resolution approved", {
-            description: res.warning,
-          });
+          toast.warning(res.warning);
         } else {
           toast.success("Resolution completed", {
             description: "Invoice and resolutions list are updated.",
