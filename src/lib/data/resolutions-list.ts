@@ -78,6 +78,8 @@ function statusLabel(outcome: string | null): string {
   switch (outcome) {
     case "resolved":
       return "Resolved";
+    case "approved":
+      return "Approved";
     case "partial":
       return "Partial";
     case "failed":

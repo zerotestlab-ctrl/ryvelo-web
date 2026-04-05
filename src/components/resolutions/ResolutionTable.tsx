@@ -80,7 +80,7 @@ const columns: ColumnDef<ResolutionListRow>[] = [
           ? "success"
           : s === "Failed"
             ? "outline"
-            : s === "Partial"
+            : s === "Partial" || s === "Approved"
               ? "warning"
               : "secondary";
       return (

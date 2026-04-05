@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import {
   approveResolutionAction,
@@ -66,13 +67,30 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
     if (!row) return;
     setError(null);
     startTransition(async () => {
-      const res = await approveResolutionAction(row.invoiceId);
-      if (!res.ok) {
-        setError(res.error);
-        return;
+      try {
+        const res = await approveResolutionAction(row.invoiceId);
+        if (!res.ok) {
+          toast.error("Couldn’t approve resolution", {
+            description: res.error,
+          });
+          setError(res.error);
+          return;
+        }
+        close();
+        if (res.warning) {
+          toast.warning("Resolution approved", { description: res.warning });
+        } else {
+          toast.success("Resolution completed", {
+            description: "Invoice and resolutions list are updated.",
+          });
+        }
+        router.refresh();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Unexpected error";
+        console.error("[ResolutionModal] approve", e);
+        toast.error("Couldn’t approve resolution", { description: msg });
+        setError(msg);
       }
-      close();
-      router.refresh();
     });
   }
 
@@ -80,13 +98,26 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
     if (!row) return;
     setError(null);
     startTransition(async () => {
-      const res = await rejectResolutionAction(row.id);
-      if (!res.ok) {
-        setError(res.error);
-        return;
+      try {
+        const res = await rejectResolutionAction(row.id);
+        if (!res.ok) {
+          toast.error("Couldn’t reject resolution", {
+            description: res.error,
+          });
+          setError(res.error);
+          return;
+        }
+        close();
+        toast.success("Resolution rejected", {
+          description: "Status updated.",
+        });
+        router.refresh();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Unexpected error";
+        console.error("[ResolutionModal] reject", e);
+        toast.error("Couldn’t reject resolution", { description: msg });
+        setError(msg);
       }
-      close();
-      router.refresh();
     });
   }
 

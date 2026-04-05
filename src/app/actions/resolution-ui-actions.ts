@@ -38,9 +38,18 @@ export async function resolveInvoiceNowAction(invoiceId: string) {
     return { ok: false as const, error: "Invoice not found" };
   }
 
-  const result = await runResolutionWorkflow(invoiceId, {
-    runUnattended: true,
-  });
+  let result: Awaited<ReturnType<typeof runResolutionWorkflow>>;
+  try {
+    result = await runResolutionWorkflow(invoiceId, {
+      runUnattended: true,
+    });
+  } catch (e) {
+    console.error("[resolveInvoiceNowAction]", e);
+    return {
+      ok: false as const,
+      error: "Something went wrong. Please try again.",
+    };
+  }
 
   revalidatePath("/resolutions");
   revalidatePath("/dashboard");
@@ -53,7 +62,11 @@ export async function resolveInvoiceNowAction(invoiceId: string) {
     };
   }
 
-  return { ok: true as const, phase: result.phase };
+  return {
+    ok: true as const,
+    phase: result.phase,
+    warning: result.phase === "completed" ? result.warning : undefined,
+  };
 }
 
 export async function approveResolutionAction(invoiceId: string) {
@@ -67,12 +80,22 @@ export async function approveResolutionAction(invoiceId: string) {
     return { ok: false as const, error: "Invoice not found" };
   }
 
-  const result = await runResolutionWorkflow(invoiceId, {
-    humanApproved: true,
-  });
+  let result: Awaited<ReturnType<typeof runResolutionWorkflow>>;
+  try {
+    result = await runResolutionWorkflow(invoiceId, {
+      humanApproved: true,
+    });
+  } catch (e) {
+    console.error("[approveResolutionAction]", e);
+    return {
+      ok: false as const,
+      error: "Something went wrong. Please try again.",
+    };
+  }
 
   revalidatePath("/resolutions");
   revalidatePath("/dashboard");
+  revalidatePath("/invoices");
 
   if (result.phase === "failed") {
     return {
@@ -81,7 +104,10 @@ export async function approveResolutionAction(invoiceId: string) {
     };
   }
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    warning: result.phase === "completed" ? result.warning : undefined,
+  };
 }
 
 export async function rejectResolutionAction(resolutionId: string) {
@@ -90,48 +116,56 @@ export async function rejectResolutionAction(resolutionId: string) {
     return { ok: false as const, error: "Not signed in" };
   }
 
-  const profileId = await getProfileIdForClerkUser(userId);
-  if (!profileId) {
-    return { ok: false as const, error: "No profile" };
+  try {
+    const profileId = await getProfileIdForClerkUser(userId);
+    if (!profileId) {
+      return { ok: false as const, error: "No profile" };
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const { data: res, error: fetchErr } = await supabase
+      .from("resolutions")
+      .select("id, invoice_id")
+      .eq("id", resolutionId)
+      .maybeSingle();
+
+    if (fetchErr || !res?.invoice_id) {
+      return { ok: false as const, error: "Resolution not found" };
+    }
+
+    const { data: inv, error: invErr } = await supabase
+      .from("invoices")
+      .select("user_id")
+      .eq("id", res.invoice_id)
+      .single();
+
+    if (invErr || !inv || inv.user_id !== profileId) {
+      return { ok: false as const, error: "Forbidden" };
+    }
+
+    const { error: upErr } = await supabase
+      .from("resolutions")
+      .update({
+        outcome_status: "failed",
+        human_reviewed: true,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("id", resolutionId);
+
+    if (upErr) {
+      return { ok: false as const, error: upErr.message };
+    }
+
+    revalidatePath("/resolutions");
+    revalidatePath("/dashboard");
+    revalidatePath("/invoices");
+
+    return { ok: true as const };
+  } catch (e) {
+    console.error("[rejectResolutionAction]", e);
+    return {
+      ok: false as const,
+      error: "Something went wrong. Please try again.",
+    };
   }
-
-  const supabase = createSupabaseAdminClient();
-  const { data: res, error: fetchErr } = await supabase
-    .from("resolutions")
-    .select("id, invoice_id")
-    .eq("id", resolutionId)
-    .maybeSingle();
-
-  if (fetchErr || !res?.invoice_id) {
-    return { ok: false as const, error: "Resolution not found" };
-  }
-
-  const { data: inv, error: invErr } = await supabase
-    .from("invoices")
-    .select("user_id")
-    .eq("id", res.invoice_id)
-    .single();
-
-  if (invErr || !inv || inv.user_id !== profileId) {
-    return { ok: false as const, error: "Forbidden" };
-  }
-
-  const { error: upErr } = await supabase
-    .from("resolutions")
-    .update({
-      outcome_status: "failed",
-      human_reviewed: true,
-      resolved_at: new Date().toISOString(),
-    })
-    .eq("id", resolutionId);
-
-  if (upErr) {
-    return { ok: false as const, error: upErr.message };
-  }
-
-  revalidatePath("/resolutions");
-  revalidatePath("/dashboard");
-  revalidatePath("/invoices");
-
-  return { ok: true as const };
 }

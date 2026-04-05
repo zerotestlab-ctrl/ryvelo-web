@@ -328,6 +328,9 @@ async function humanReviewNode(state: GraphState): Promise<GraphState> {
 // 4. execute_resolution — Resend email + payment link in body
 // ─────────────────────────────────────────────────────────────
 
+const EXECUTION_WARNING_USER_MSG =
+  "Resolution approved. Email/payment step failed — check server logs." as const;
+
 async function executeResolutionNode(state: GraphState): Promise<GraphState> {
   const s = state.snapshot;
   if (!s.humanApproved && !s.skipHumanGate) {
@@ -357,97 +360,135 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
   const recoveredAmount = s.amountAtStake;
   const resolutionId = s.resolutionId ?? s.invoiceId;
 
-  const attach = await createAttachablePaymentLinks({
-    recoveredAmount,
-    currency,
-    invoiceId: s.invoiceId,
-    resolutionId,
-  });
-
-  const aiDraftLink =
-    typeof s.proposedResolution.paymentLink === "string" &&
-    s.proposedResolution.paymentLink.length > 0
-      ? s.proposedResolution.paymentLink
-      : undefined;
-
-  const paymentLinks: { label: string; url: string }[] = [];
-  if (attach.stripeFeeCheckoutUrl) {
-    paymentLinks.push({
-      label: `Pay success fee (Stripe, ${attach.feePercent}% of recovered)`,
-      url: attach.stripeFeeCheckoutUrl,
+  try {
+    const attach = await createAttachablePaymentLinks({
+      recoveredAmount,
+      currency,
+      invoiceId: s.invoiceId,
+      resolutionId,
     });
-  }
-  if (attach.wisePayUrl) {
-    paymentLinks.push({
-      label: "Remit / collect (Wise)",
-      url: attach.wisePayUrl,
-    });
-  }
-  if (aiDraftLink) {
-    paymentLinks.push({
-      label: "Reference payment link (from draft)",
-      url: aiDraftLink,
-    });
-  }
 
-  const intro =
-    `We are following up on the outstanding balance (${currency} ${recoveredAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). ` +
-    `Our success-based fee is ${attach.feePercent}% of recovered cash (approximately ${currency} ${attach.feeAmount.toFixed(2)}). ` +
-    `Please use the links below to remit payment or complete the success fee.\n\n`;
+    const aiDraftLink =
+      typeof s.proposedResolution.paymentLink === "string" &&
+      s.proposedResolution.paymentLink.length > 0
+        ? s.proposedResolution.paymentLink
+        : undefined;
 
-  let emailResult: unknown = { note: "No recipient email on invoice" };
-  if (to) {
-    emailResult = await sendResolutionEmail({
-      to,
-      subject: "Invoice resolution — payment and remittance",
-      textBody: intro + draft,
-      paymentLinks,
-    });
-  }
-
-  const nextStep = step(
-    "execute_resolution",
-    { email: emailResult, attach: attach },
-    "success"
-  );
-  const aiSteps = [...s.aiSteps, nextStep];
-  await persistAiSteps(s.resolutionId, aiSteps);
-
-  /** Mark human review complete once recovery email + links step has run (approved path). */
-  if (s.resolutionId) {
-    const supabaseExec = createSupabaseAdminClient();
-    const { error: hrErr } = await supabaseExec
-      .from("resolutions")
-      .update({ human_reviewed: true })
-      .eq("id", s.resolutionId);
-    if (hrErr) {
-      const failSteps = [
-        ...aiSteps,
-        step(
-          "execute_resolution",
-          { error: `human_reviewed: ${hrErr.message}` },
-          "failed"
-        ),
-      ];
-      await persistAiSteps(s.resolutionId, failSteps);
-      return {
-        snapshot: {
-          ...s,
-          status: "failed",
-          aiSteps: failSteps,
-        },
-      };
+    const paymentLinks: { label: string; url: string }[] = [];
+    if (attach.stripeFeeCheckoutUrl) {
+      paymentLinks.push({
+        label: `Pay success fee (Stripe, ${attach.feePercent}% of recovered)`,
+        url: attach.stripeFeeCheckoutUrl,
+      });
     }
-  }
+    if (attach.wisePayUrl) {
+      paymentLinks.push({
+        label: "Remit / collect (Wise)",
+        url: attach.wisePayUrl,
+      });
+    }
+    if (aiDraftLink) {
+      paymentLinks.push({
+        label: "Reference payment link (from draft)",
+        url: aiDraftLink,
+      });
+    }
 
-  return {
-    snapshot: {
-      ...s,
-      status: "executing",
-      amountRecovered: s.amountRecovered ?? s.amountAtStake,
-      aiSteps,
-    },
-  };
+    const intro =
+      `We are following up on the outstanding balance (${currency} ${recoveredAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). ` +
+      `Our success-based fee is ${attach.feePercent}% of recovered cash (approximately ${currency} ${attach.feeAmount.toFixed(2)}). ` +
+      `Please use the links below to remit payment or complete the success fee.\n\n`;
+
+    let emailResult: unknown = { note: "No recipient email on invoice" };
+    if (to) {
+      emailResult = await sendResolutionEmail({
+        to,
+        subject: "Invoice resolution — payment and remittance",
+        textBody: intro + draft,
+        paymentLinks,
+      });
+    }
+
+    const nextStep = step(
+      "execute_resolution",
+      { email: emailResult, attach: attach },
+      "success"
+    );
+    const aiSteps = [...s.aiSteps, nextStep];
+    await persistAiSteps(s.resolutionId, aiSteps);
+
+    /** Mark human review complete once recovery email + links step has run (approved path). */
+    if (s.resolutionId) {
+      const supabaseExec = createSupabaseAdminClient();
+      const { error: hrErr } = await supabaseExec
+        .from("resolutions")
+        .update({ human_reviewed: true })
+        .eq("id", s.resolutionId);
+      if (hrErr) {
+        const failSteps = [
+          ...aiSteps,
+          step(
+            "execute_resolution",
+            { error: `human_reviewed: ${hrErr.message}` },
+            "failed"
+          ),
+        ];
+        await persistAiSteps(s.resolutionId, failSteps);
+        return {
+          snapshot: {
+            ...s,
+            status: "failed",
+            aiSteps: failSteps,
+          },
+        };
+      }
+    }
+
+    return {
+      snapshot: {
+        ...s,
+        status: "executing",
+        amountRecovered: s.amountRecovered ?? s.amountAtStake,
+        aiSteps,
+      },
+    };
+  } catch (e) {
+    console.error("[execute_resolution] email/payment step failed:", e);
+
+    const errDetail = e instanceof Error ? e.message : String(e);
+    const failStep = step(
+      "execute_resolution",
+      {
+        error: errDetail,
+        userMessage: EXECUTION_WARNING_USER_MSG,
+      },
+      "failed"
+    );
+    const aiSteps = [...s.aiSteps, failStep];
+    await persistAiSteps(s.resolutionId, aiSteps);
+
+    if (s.resolutionId) {
+      const supabaseExec = createSupabaseAdminClient();
+      await supabaseExec
+        .from("resolutions")
+        .update({
+          human_reviewed: true,
+          outcome_status: "approved",
+          ai_steps: JSON.parse(JSON.stringify(aiSteps)) as unknown[],
+        })
+        .eq("id", s.resolutionId);
+    }
+
+    return {
+      snapshot: {
+        ...s,
+        status: "executing",
+        amountRecovered: s.amountRecovered ?? s.amountAtStake,
+        aiSteps,
+        executionWarning: EXECUTION_WARNING_USER_MSG,
+      },
+    };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -459,10 +500,13 @@ async function logOutcomeNode(state: GraphState): Promise<GraphState> {
   const supabase = createSupabaseAdminClient();
   const resolvedAt = new Date().toISOString();
   const amountRecovered = s.amountRecovered ?? s.amountAtStake;
+  const executionWarning = s.executionWarning;
+
+  const outcomeStatus = executionWarning ? ("approved" as const) : ("resolved" as const);
 
   const update = {
     ai_steps: s.aiSteps,
-    outcome_status: "resolved" as const,
+    outcome_status: outcomeStatus,
     amount_recovered: amountRecovered,
     resolved_at: resolvedAt,
     human_reviewed: true,
@@ -491,7 +535,7 @@ async function logOutcomeNode(state: GraphState): Promise<GraphState> {
 
     await supabase
       .from("invoices")
-      .update({ status: "resolved" })
+      .update({ status: executionWarning ? "resolving" : "resolved" })
       .eq("id", s.invoiceId);
   }
 
@@ -768,7 +812,20 @@ export async function runResolutionWorkflow(
       };
     }
 
-    const out = await phaseTwoGraph.invoke({ snapshot: state });
+    let out: { snapshot: ResolutionState };
+    try {
+      out = await phaseTwoGraph.invoke({ snapshot: state });
+    } catch (e) {
+      console.error("[runResolutionWorkflow] phase 2 invoke failed:", e);
+      return {
+        phase: "failed",
+        invoiceId,
+        resolutionId: state.resolutionId,
+        state,
+        error:
+          e instanceof Error ? e.message : "Execution failed — see server logs.",
+      };
+    }
     const final = out.snapshot;
     if (final.status === "failed") {
       return {
@@ -784,6 +841,7 @@ export async function runResolutionWorkflow(
       invoiceId,
       resolutionId: final.resolutionId,
       state: final,
+      warning: final.executionWarning,
     };
   }
 
@@ -821,7 +879,20 @@ export async function runResolutionWorkflow(
 
   /** ZEROTEST / RESOLUTION_SKIP_HUMAN: continue to phase 2 in same request */
   s1 = { ...s1, humanApproved: true, skipHumanGate: true };
-  const afterTwo = await phaseTwoGraph.invoke({ snapshot: s1 });
+  let afterTwo: { snapshot: ResolutionState };
+  try {
+    afterTwo = await phaseTwoGraph.invoke({ snapshot: s1 });
+  } catch (e) {
+    console.error("[runResolutionWorkflow] phase 2 invoke failed:", e);
+    return {
+      phase: "failed",
+      invoiceId,
+      resolutionId: s1.resolutionId,
+      state: s1,
+      error:
+        e instanceof Error ? e.message : "Execution failed — see server logs.",
+    };
+  }
   const s2 = afterTwo.snapshot;
 
   if (s2.status === "failed") {
@@ -838,6 +909,7 @@ export async function runResolutionWorkflow(
     invoiceId,
     resolutionId: s2.resolutionId,
     state: s2,
+    warning: s2.executionWarning,
   };
 }
 

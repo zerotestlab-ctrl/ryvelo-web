@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { type ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 
 import { resolveInvoiceNowAction } from "@/app/actions/resolution-ui-actions";
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +26,22 @@ function ResolveNowButton({ invoiceId }: { invoiceId: string }) {
       disabled={pending}
       onClick={() => {
         startTransition(async () => {
-          const r = await resolveInvoiceNowAction(invoiceId);
-          if (r.ok) {
+          try {
+            const r = await resolveInvoiceNowAction(invoiceId);
+            if (!r.ok) {
+              toast.error("Couldn’t run resolution", { description: r.error });
+              return;
+            }
+            if (r.warning) {
+              toast.warning("Resolution finished", { description: r.warning });
+            } else {
+              toast.success("Resolution completed");
+            }
             router.refresh();
-          } else {
-            alert("Could not run resolution: " + r.error);
+          } catch (e) {
+            toast.error("Couldn’t run resolution", {
+              description: e instanceof Error ? e.message : "Unexpected error",
+            });
           }
         });
       }}

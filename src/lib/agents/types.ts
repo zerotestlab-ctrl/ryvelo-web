@@ -60,6 +60,11 @@ export interface ResolutionState {
   status: ResolutionRunStatus;
   /** When true, skip human_review and run execute+log in the same run (QA / “Resolve now”). */
   skipHumanGate?: boolean;
+  /**
+   * Set when approve succeeded but email/payment tooling threw — workflow still completes
+   * with `outcome_status` approved and a user-facing message.
+   */
+  executionWarning?: string;
 }
 
 /** Result of `runResolutionWorkflow` — UI waits on `awaiting_human`. */
@@ -75,6 +80,8 @@ export type ResolutionWorkflowResult =
       invoiceId: string;
       resolutionId: string | undefined;
       state: ResolutionState;
+      /** Shown when email/payment failed after human approval. */
+      warning?: string;
     }
   | {
       phase: "failed";
@@ -135,6 +142,7 @@ export const ResolutionStateSchema = z.object({
     "failed",
   ]),
   skipHumanGate: z.boolean().optional(),
+  executionWarning: z.string().optional(),
 });
 
 /** Structured LLM output for propose_resolution (Claude / OpenAI). */
