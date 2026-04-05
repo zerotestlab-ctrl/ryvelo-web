@@ -56,6 +56,12 @@ export default async function InvoicesPage() {
         </div>
       ) : null}
 
+      {!fetchError && invoices.length === 0 ? (
+        <p className="rounded-lg border border-border/60 bg-card/30 px-4 py-3 text-sm text-muted-foreground">
+          No invoices yet — use Upload Invoice on the dashboard to import a file.
+        </p>
+      ) : null}
+
       <RecentInvoicesDataTable
         data={invoices}
         showResolveColumn={false}

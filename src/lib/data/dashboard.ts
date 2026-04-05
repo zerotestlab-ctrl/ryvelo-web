@@ -310,6 +310,9 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
     };
   }
 
+  /** Set after successful `ensureProfileForClerkUser` — used for graceful catch recovery. */
+  let ensuredProfileId: string | null = null;
+
   try {
     const ensured = await ensureProfileForClerkUser(clerkUserId);
     if (!ensured.ok) {
@@ -324,6 +327,7 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
       };
     }
 
+    ensuredProfileId = ensured.profileId;
     const profileId = ensured.profileId;
     let profileRow =
       (await getProfileRowById(profileId)) ??
@@ -352,10 +356,11 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
       .order("ingested_at", { ascending: false });
 
     if (invErr) {
+      console.error("[getDashboardData] invoices query failed:", invErr);
       return {
         invoices: [],
         resolutions: [],
-        fetchError: invErr.message,
+        fetchError: null,
         setupError: null,
         hasProfile: true,
         subscriptionPlanLabel,
@@ -370,6 +375,12 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
     let allResolutions: DbResolutionRow[] = [];
 
     if (invoiceIds.length > 0) {
+      const metricInvoices: DbInvoiceMetrics[] = allInvoices.map((i) => ({
+        id: i.id,
+        invoice_date: i.invoice_date,
+        status: i.status,
+      }));
+
       const { data: resData, error: resErr } = await supabase
         .from("resolutions")
         .select(
@@ -378,34 +389,22 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
         .in("invoice_id", invoiceIds);
 
       if (resErr) {
-        return {
-          invoices: [],
-          resolutions: [],
-          fetchError: resErr.message,
-          setupError: null,
-          hasProfile: true,
-          subscriptionPlanLabel,
-          metrics: emptyMetrics(),
-        };
+        console.error("[getDashboardData] resolutions query failed:", resErr);
+        allResolutions = [];
+        metrics = buildMetrics(metricInvoices, []);
+      } else {
+        allResolutions = (resData ?? []) as DbResolutionRow[];
+
+        const metricRes: DbResolutionMetrics[] = allResolutions.map((r) => ({
+          invoice_id: r.invoice_id,
+          amount_recovered: r.amount_recovered,
+          resolved_at: r.resolved_at,
+          created_at: r.created_at,
+          outcome_status: r.outcome_status,
+        }));
+
+        metrics = buildMetrics(metricInvoices, metricRes);
       }
-
-      allResolutions = (resData ?? []) as DbResolutionRow[];
-
-      const metricInvoices: DbInvoiceMetrics[] = allInvoices.map((i) => ({
-        id: i.id,
-        invoice_date: i.invoice_date,
-        status: i.status,
-      }));
-
-      const metricRes: DbResolutionMetrics[] = allResolutions.map((r) => ({
-        invoice_id: r.invoice_id,
-        amount_recovered: r.amount_recovered,
-        resolved_at: r.resolved_at,
-        created_at: r.created_at,
-        outcome_status: r.outcome_status,
-      }));
-
-      metrics = buildMetrics(metricInvoices, metricRes);
     }
 
     const byInvoice = new Map(allInvoices.map((i) => [i.id, i]));
@@ -462,12 +461,25 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
       metrics,
     };
   } catch (e) {
-    console.error("[getDashboardData]", e);
+    const err = e instanceof Error ? e : new Error(String(e));
+    console.error("[getDashboardData] unexpected error:", err.message, err);
+
+    if (isSupabaseEnvConfigured()) {
+      return {
+        invoices: [],
+        resolutions: [],
+        fetchError: null,
+        setupError: null,
+        hasProfile: Boolean(ensuredProfileId),
+        subscriptionPlanLabel: "Free",
+        metrics: emptyMetrics(),
+      };
+    }
+
     return {
       invoices: [],
       resolutions: [],
-      fetchError:
-        "We couldn’t load your dashboard. Check your connection and refresh the page.",
+      fetchError: null,
       setupError: null,
       hasProfile: false,
       subscriptionPlanLabel: "Free",

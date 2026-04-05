@@ -64,6 +64,14 @@ export async function DashboardPageContent() {
         </div>
       ) : null}
 
+      {!fetchError &&
+      invoices.length === 0 &&
+      resolutions.length === 0 ? (
+        <p className="rounded-lg border border-border/60 bg-card/30 px-4 py-3 text-sm text-muted-foreground">
+          No data yet — upload an invoice to populate metrics and tables.
+        </p>
+      ) : null}
+
       <SubscriptionUpgradeCta planLabel={subscriptionPlanLabel} />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
