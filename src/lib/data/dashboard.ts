@@ -9,6 +9,7 @@ import type { InvoiceRow } from "@/lib/data/invoice-types";
 import type { ResolutionTimelineItem } from "@/components/ui/resolution-timeline";
 import type { CashVelocityPoint } from "@/components/dashboard/cash-velocity-chart";
 import { formatAmount } from "@/lib/format";
+import { ensureProfileForClerkUser } from "@/lib/profile/ensure-profile";
 
 type DbInvoiceRow = {
   id: string;
@@ -263,13 +264,13 @@ const emptyMetrics = (): ReturnType<typeof buildMetrics> =>
 const RECENT_INVOICES_LIMIT = 25;
 const RECENT_RESOLUTIONS_LIMIT = 25;
 
-export async function getDashboardData(
-  clerkUserId: string | null,
-  opts?: { ensuredProfileId?: string }
-): Promise<{
+export async function getDashboardData(clerkUserId: string | null): Promise<{
   invoices: InvoiceRow[];
   resolutions: ResolutionTimelineItem[];
+  /** Transient DB / query failure (not missing profile). */
   fetchError: string | null;
+  /** Set when `ensureProfileForClerkUser` fails — use `ProfileSetupRetry` in UI. */
+  setupError: string | null;
   hasProfile: boolean;
   subscriptionPlanLabel: string;
   metrics: {
@@ -285,6 +286,7 @@ export async function getDashboardData(
       invoices: [],
       resolutions: [],
       fetchError: null,
+      setupError: null,
       hasProfile: false,
       subscriptionPlanLabel: "Free",
       metrics: emptyMetrics(),
@@ -297,6 +299,7 @@ export async function getDashboardData(
       resolutions: [],
       fetchError:
         "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      setupError: null,
       hasProfile: false,
       subscriptionPlanLabel: "Free",
       metrics: emptyMetrics(),
@@ -304,22 +307,32 @@ export async function getDashboardData(
   }
 
   try {
-    let profileRow = await getProfileRowForClerkUser(clerkUserId);
-    if (!profileRow && opts?.ensuredProfileId) {
-      profileRow = await getProfileRowById(opts.ensuredProfileId);
-    }
-    if (!profileRow) {
+    const ensured = await ensureProfileForClerkUser(clerkUserId);
+    if (!ensured.ok) {
       return {
         invoices: [],
         resolutions: [],
         fetchError: null,
+        setupError: ensured.reason,
         hasProfile: false,
         subscriptionPlanLabel: "Free",
         metrics: emptyMetrics(),
       };
     }
 
-    const profileId = profileRow.id;
+    const profileId = ensured.profileId;
+    let profileRow =
+      (await getProfileRowById(profileId)) ??
+      (await getProfileRowForClerkUser(clerkUserId));
+
+    if (!profileRow) {
+      profileRow = {
+        id: profileId,
+        subscription_plan: "free",
+      };
+    }
+
+    const resolvedProfileId = profileRow.id;
     const subscriptionPlanLabel = formatSubscriptionPlanLabel(
       profileRow.subscription_plan
     );
@@ -331,7 +344,7 @@ export async function getDashboardData(
       .select(
         "id, client_name, amount, currency, due_date, status, ingested_at, invoice_date"
       )
-      .eq("user_id", profileId)
+      .eq("user_id", resolvedProfileId)
       .order("ingested_at", { ascending: false });
 
     if (invErr) {
@@ -339,6 +352,7 @@ export async function getDashboardData(
         invoices: [],
         resolutions: [],
         fetchError: invErr.message,
+        setupError: null,
         hasProfile: true,
         subscriptionPlanLabel,
         metrics: emptyMetrics(),
@@ -364,6 +378,7 @@ export async function getDashboardData(
           invoices: [],
           resolutions: [],
           fetchError: resErr.message,
+          setupError: null,
           hasProfile: true,
           subscriptionPlanLabel,
           metrics: emptyMetrics(),
@@ -437,18 +452,19 @@ export async function getDashboardData(
       invoices: rows,
       resolutions,
       fetchError: null,
+      setupError: null,
       hasProfile: true,
       subscriptionPlanLabel,
       metrics,
     };
   } catch (e) {
     console.error("[getDashboardData]", e);
-    const msg =
-      e instanceof Error ? e.message : "Could not load dashboard from Supabase.";
     return {
       invoices: [],
       resolutions: [],
-      fetchError: msg,
+      fetchError:
+        "We couldn’t load your dashboard. Check your connection and refresh the page.",
+      setupError: null,
       hasProfile: false,
       subscriptionPlanLabel: "Free",
       metrics: emptyMetrics(),

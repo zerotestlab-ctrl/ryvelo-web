@@ -9,7 +9,6 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { ResolutionTimeline } from "@/components/ui/resolution-timeline";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { formatUsd } from "@/lib/format";
-import { ensureProfileForClerkUser } from "@/lib/profile/ensure-profile";
 
 export async function DashboardPageContent() {
   const { userId } = await auth();
@@ -17,18 +16,18 @@ export async function DashboardPageContent() {
     return null;
   }
 
-  const ensured = await ensureProfileForClerkUser(userId);
-  if (!ensured.ok) {
-    return <ProfileSetupRetry reason={ensured.reason} />;
-  }
-
   const {
     invoices,
     resolutions,
     fetchError,
+    setupError,
     metrics,
     subscriptionPlanLabel,
-  } = await getDashboardData(userId, { ensuredProfileId: ensured.profileId });
+  } = await getDashboardData(userId);
+
+  if (setupError) {
+    return <ProfileSetupRetry reason={setupError} />;
+  }
 
   const avgResolutionLabel =
     metrics.avgResolutionDays != null
@@ -52,7 +51,7 @@ export async function DashboardPageContent() {
           <p className="mt-2 text-xs text-muted-foreground">Live data · Supabase</p>
         </div>
         <div className="w-full shrink-0 lg:max-w-md lg:pt-0">
-          <UploadInvoiceButton disabled={!userId} />
+          <UploadInvoiceButton disabled={false} />
         </div>
       </div>
 

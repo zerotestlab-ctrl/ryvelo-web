@@ -74,7 +74,7 @@ export function UploadInvoiceButton({ className, disabled }: Props) {
 
         const ok = data as IngestSuccessResponse;
         toast.success("Invoice imported", {
-          description: `${ok.analysis.issues.length} issue(s) detected · overall risk ${ok.analysis.overall_risk}`,
+          description: `${ok.analysis.issues.length} issue(s) · risk ${ok.analysis.overall_risk}. Dashboard and resolutions updated.`,
         });
         router.prefetch("/dashboard");
         router.prefetch("/resolutions");
@@ -188,7 +188,7 @@ export function UploadInvoiceButton({ className, disabled }: Props) {
           </div>
           <div className="min-w-0 flex-1 text-left">
             <p className="text-sm font-medium text-foreground">
-              {loading ? "Importing…" : "Upload invoice"}
+              {loading ? "Importing…" : "Upload Invoice"}
             </p>
             <p className="text-xs text-muted-foreground">
               {blocked && !loading

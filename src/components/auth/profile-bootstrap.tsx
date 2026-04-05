@@ -7,9 +7,9 @@ import { useEffect } from "react";
 import { createProfileIfMissing } from "@/app/actions/create-profile";
 
 /**
- * Ensures a `profiles` row exists after Clerk loads and on each app navigation
- * (including every dashboard load). Calls `createProfileIfMissing` (server action).
- * Idempotent — refreshes the server tree when a row was created.
+ * Ensures a Supabase `profiles` row exists for the signed-in Clerk user.
+ * Runs after Clerk loads and on **every navigation** (`pathname` in deps), so the
+ * dashboard route always triggers `createProfileIfMissing` on load. Idempotent.
  */
 export function ProfileBootstrap() {
   const { isLoaded, userId } = useAuth();

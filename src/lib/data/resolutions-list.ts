@@ -1,8 +1,8 @@
 import {
   createSupabaseAdminClient,
-  getProfileIdForClerkUser,
   isSupabaseEnvConfigured,
 } from "@/lib/supabase/admin";
+import { ensureProfileForClerkUser } from "@/lib/profile/ensure-profile";
 import type { ResolutionStep } from "@/lib/agents/types";
 
 export type ResolutionListRow = {
@@ -104,10 +104,11 @@ export async function getResolutionListForClerkUser(
   }
 
   try {
-    const profileId = await getProfileIdForClerkUser(clerkUserId);
-    if (!profileId) {
+    const ensured = await ensureProfileForClerkUser(clerkUserId);
+    if (!ensured.ok) {
       return { rows: [], error: null };
     }
+    const profileId = ensured.profileId;
 
     const supabase = createSupabaseAdminClient();
 
@@ -201,7 +202,7 @@ export async function getResolutionListForClerkUser(
     return {
       rows: [],
       error:
-        e instanceof Error ? e.message : "Could not load resolutions from Supabase.",
+        "We couldn’t load resolutions. Check your connection and refresh the page.",
     };
   }
 }

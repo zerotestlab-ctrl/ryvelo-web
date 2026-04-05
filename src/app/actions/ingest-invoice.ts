@@ -16,6 +16,7 @@ function revalidateIngestPaths() {
 
 /**
  * Same pipeline as POST /api/ingest — use from Server Components or server actions.
+ * For UI feedback, callers should map the result to Sonner toasts and call `router.refresh()`.
  */
 export async function ingestInvoiceAction(
   body: unknown

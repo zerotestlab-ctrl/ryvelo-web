@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 
+import { ProfileSetupRetry } from "@/components/auth/profile-setup-retry";
 import { RecentInvoicesDataTable } from "@/components/dashboard/recent-invoices-data-table";
 import { getDashboardData } from "@/lib/data/dashboard";
 
@@ -7,7 +8,26 @@ export const dynamic = "force-dynamic";
 
 export default async function InvoicesPage() {
   const { userId } = await auth();
-  const { invoices, fetchError, hasProfile } = await getDashboardData(userId);
+  const { invoices, fetchError, hasProfile, setupError } =
+    await getDashboardData(userId);
+
+  if (setupError) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-1 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Invoices
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Open balances and status from your invoices (newest first).
+            </p>
+          </div>
+        </div>
+        <ProfileSetupRetry reason={setupError} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -36,19 +56,10 @@ export default async function InvoicesPage() {
         </div>
       ) : null}
 
-      {!hasProfile && userId ? (
-        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          No Supabase profile linked to this sign-in. Add a{" "}
-          <span className="font-mono text-xs text-foreground">profiles</span> row
-          with your Clerk user id in{" "}
-          <span className="font-mono text-xs text-foreground">clerk_id</span>.
-        </div>
-      ) : null}
-
       <RecentInvoicesDataTable
         data={invoices}
         showResolveColumn={false}
-        emptyMessage="No invoices yet. Invoices appear when your ingest pipeline or API creates them."
+        emptyMessage="No invoices yet. Use Upload Invoice on the dashboard to import a file."
       />
     </div>
   );
