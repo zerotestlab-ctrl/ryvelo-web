@@ -12,4 +12,5 @@ export type ResolutionRowFields = {
   amount_recovered: string | number | null;
   resolved_at: string | null;
   created_at: string | null;
+  payment_link: string | null;
 };

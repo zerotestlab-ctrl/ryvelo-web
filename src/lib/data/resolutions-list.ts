@@ -18,6 +18,8 @@ export type ResolutionListRow = {
   outcomeStatus: string;
   /** From `resolutions.human_reviewed` — true after approve/reject/execute path. */
   humanReviewed: boolean;
+  /** From `resolutions.payment_link` — Paystack collect URL after execute. */
+  paymentLink: string | null;
   aiSteps: ResolutionStep[];
   issuesDetected: unknown;
 };
@@ -141,6 +143,7 @@ export async function getResolutionListForClerkUser(
         ai_steps,
         invoice_id,
         human_reviewed,
+        payment_link,
         invoices (
           id,
           client_name,
@@ -183,6 +186,10 @@ export async function getResolutionListForClerkUser(
         : [];
       const outcome = typeof row.outcome_status === "string" ? row.outcome_status : "pending";
       const humanReviewed = Boolean(row.human_reviewed);
+      const paymentLink =
+        typeof row.payment_link === "string" && row.payment_link.trim()
+          ? row.payment_link.trim()
+          : null;
 
       return {
         id: String(row.id),
@@ -196,6 +203,7 @@ export async function getResolutionListForClerkUser(
         statusLabel: statusLabel(outcome),
         outcomeStatus: outcome,
         humanReviewed,
+        paymentLink,
         aiSteps: steps,
         issuesDetected: issues,
       };

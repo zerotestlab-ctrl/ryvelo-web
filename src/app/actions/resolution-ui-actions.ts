@@ -4,23 +4,70 @@ import { auth } from "@clerk/nextjs/server";
 
 import { runResolutionWorkflow } from "@/lib/agents/resolution-graph";
 import { revalidateAppRoutes } from "@/lib/cache/revalidate-app-routes";
-import { APPROVED_EMAIL_STEP_SKIPPED_TITLE } from "@/lib/resolution-toast-messages";
+import { buildPaystackCollectUrl } from "@/lib/payments/paystack-checkout-urls";
+import {
+  APPROVED_EMAIL_STEP_SKIPPED_TITLE,
+  RESOLUTION_APPROVED_PAYMENT_READY,
+} from "@/lib/resolution-toast-messages";
 import { createSupabaseAdminClient, getProfileIdForClerkUser } from "@/lib/supabase/admin";
+
+function normalizeIssuesDetected(raw: unknown): unknown[] {
+  return Array.isArray(raw) ? raw : [];
+}
+
+function normalizeAiStepsJson(raw: unknown): unknown[] {
+  return Array.isArray(raw) ? raw : [];
+}
 
 /**
  * Best-effort: mark the latest resolution for this invoice as human-approved.
  * Used when `runResolutionWorkflow` throws or returns `failed` so the UI still wins.
+ * Coerces `issues_detected` / `ai_steps` to arrays and sets Paystack collect link.
  */
 async function forceApproveResolutionInDb(invoiceId: string): Promise<boolean> {
   try {
     const supabase = createSupabaseAdminClient();
     const resolvedAt = new Date().toISOString();
+    const { data: row } = await supabase
+      .from("resolutions")
+      .select("id, issues_detected, ai_steps")
+      .eq("invoice_id", invoiceId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: inv } = await supabase
+      .from("invoices")
+      .select("amount, currency")
+      .eq("id", invoiceId)
+      .maybeSingle();
+
+    const rid = row?.id as string | undefined;
+    const amt =
+      inv?.amount != null && Number.isFinite(Number(inv.amount))
+        ? Number(inv.amount)
+        : undefined;
+    const cur =
+      typeof inv?.currency === "string" && inv.currency.trim()
+        ? inv.currency.trim()
+        : "USD";
+
+    const payUrl = buildPaystackCollectUrl({
+      invoiceId,
+      resolutionId: rid,
+      amount: amt,
+      currency: cur,
+    });
+
     const { error } = await supabase
       .from("resolutions")
       .update({
         human_reviewed: true,
         outcome_status: "approved",
         resolved_at: resolvedAt,
+        payment_link: payUrl,
+        issues_detected: normalizeIssuesDetected(row?.issues_detected),
+        ai_steps: normalizeAiStepsJson(row?.ai_steps),
       })
       .eq("invoice_id", invoiceId);
 
@@ -147,10 +194,20 @@ export async function approveResolutionAction(invoiceId: string) {
     };
   }
 
-  return {
-    ok: true as const,
-    warning: result.phase === "completed" ? result.warning : undefined,
-  };
+  if (result.phase === "completed") {
+    if (result.warning) {
+      return {
+        ok: true as const,
+        warning: result.warning,
+      };
+    }
+    return {
+      ok: true as const,
+      successMessage: RESOLUTION_APPROVED_PAYMENT_READY,
+    };
+  }
+
+  return { ok: true as const };
 }
 
 export async function rejectResolutionAction(resolutionId: string) {

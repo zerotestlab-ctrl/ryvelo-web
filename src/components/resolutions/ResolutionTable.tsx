@@ -106,10 +106,16 @@ type Props = {
 };
 
 export function ResolutionTable({ data }: Props) {
-  const [selected, setSelected] = useState<ResolutionListRow | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   const tableData = useMemo(() => data, [data]);
+
+  const selectedRow = useMemo(
+    () =>
+      selectedId ? (data.find((r) => r.id === selectedId) ?? null) : null,
+    [data, selectedId]
+  );
 
   return (
     <>
@@ -118,16 +124,16 @@ export function ResolutionTable({ data }: Props) {
         data={tableData}
         emptyMessage="No resolutions yet. Ingest an invoice on the Dashboard — rows are loaded live from Supabase."
         onRowClick={(r) => {
-          setSelected(r);
+          setSelectedId(r.id);
           setOpen(true);
         }}
       />
       <ResolutionModal
-        row={selected}
-        open={open && selected !== null}
+        row={selectedRow}
+        open={open && selectedId !== null}
         onOpenChange={(o) => {
           setOpen(o);
-          if (!o) setSelected(null);
+          if (!o) setSelectedId(null);
         }}
       />
     </>

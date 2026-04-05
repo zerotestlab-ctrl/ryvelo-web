@@ -6,7 +6,9 @@ import {
   ArrowRight,
   Banknote,
   Check,
+  ChevronDown,
   FileInput,
+  Menu,
   Quote,
   Scale,
   Sparkles,
@@ -15,115 +17,187 @@ import {
 } from "lucide-react";
 
 import { RyveloLogo } from "@/components/brand/ryvelo-logo";
-import {
-  PAYSTACK_CHECKOUT_PRO,
-  PAYSTACK_CHECKOUT_STARTER,
-} from "@/components/subscription/upgrade-button";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  marketingSignInUrl,
+  marketingSignUpUrl,
+} from "@/lib/marketing-auth-links";
+import {
+  PAYSTACK_CHECKOUT_PRO_URL,
+  PAYSTACK_CHECKOUT_STARTER_URL,
+} from "@/lib/payments/paystack-checkout-urls";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Ryvelo — Cross-border invoice resolution",
   description:
-    "Autonomous AI resolution for freelancers, creators & African exporters. Get paid faster with FX-aware workflows.",
+    "Ingest invoices, resolve with AI, collect via Paystack. Built for freelancers, creators & African exporters.",
 };
 
 /** Required for `auth()` — marketing `/` stays public; signed-in users redirect to the app. */
 export const dynamic = "force-dynamic";
 
+const navLinks = [
+  { href: "#problem", label: "Problem" },
+  { href: "#how-it-works", label: "How it works" },
+  { href: "#pricing", label: "Pricing" },
+] as const;
+
 function Nav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#071a2e]/92 backdrop-blur-xl supports-[backdrop-filter]:bg-[#071a2e]/78 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.65)]">
-      <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <RyveloLogo href="/" className="shrink-0" />
+    <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#050f1a]/90 backdrop-blur-xl supports-[backdrop-filter]:bg-[#050f1a]/75 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)]">
+      <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <RyveloLogo href="/" className="min-w-0 shrink" />
+
         <nav
-          className="flex items-center gap-0.5 sm:gap-1"
+          className="hidden items-center gap-1 md:flex"
           aria-label="Primary"
         >
+          {navLinks.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className="px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-2 sm:gap-3">
+          <details className="group relative md:hidden">
+            <summary
+              className={cn(
+                "flex cursor-pointer list-none items-center gap-1 rounded-lg border border-border/60 bg-card/40 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground",
+                "[&::-webkit-details-marker]:hidden"
+              )}
+            >
+              <Menu className="h-4 w-4" aria-hidden />
+              Menu
+              <ChevronDown className="h-3.5 w-3.5 opacity-60 transition group-open:rotate-180" />
+            </summary>
+            <div
+              className="absolute right-0 top-full z-50 mt-2 min-w-[12rem] rounded-xl border border-border/60 bg-[#071a2e] p-2 shadow-xl shadow-black/40"
+              role="menu"
+            >
+              {navLinks.map(({ href, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="block rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-white/5"
+                  role="menuitem"
+                >
+                  {label}
+                </Link>
+              ))}
+              <Link
+                href={marketingSignInUrl()}
+                className="mt-1 block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground sm:hidden"
+                role="menuitem"
+              >
+                Sign in
+              </Link>
+            </div>
+          </details>
+
           <Link
-            href="#problem"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline md:px-2"
-          >
-            Problem
-          </Link>
-          <Link
-            href="#how-it-works"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline md:px-2"
-          >
-            How it works
-          </Link>
-          <Link
-            href="#pricing"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline md:px-2"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/sign-in"
+            href={marketingSignInUrl()}
             className={cn(
               buttonVariants({ variant: "ghost", size: "sm" }),
-              "text-muted-foreground"
+              "hidden text-muted-foreground sm:inline-flex"
             )}
           >
             Sign in
           </Link>
           <Link
-            href="/sign-up"
+            href={marketingSignUpUrl()}
             className={cn(
-              buttonVariants({ size: "sm" }),
-              "font-semibold shadow-sm shadow-[#00D4C8]/10"
+              buttonVariants({ size: "default" }),
+              "min-h-10 px-5 text-sm font-semibold shadow-lg shadow-[#00D4C8]/20 sm:min-h-11 sm:px-6 sm:text-base",
+              "bg-[#00D4C8] text-[#0A2540] ring-2 ring-[#00D4C8]/35 hover:bg-[#00D4C8]/92"
             )}
           >
             Sign up free
           </Link>
-        </nav>
+        </div>
       </div>
     </header>
   );
 }
 
+function FlowPills() {
+  const items = [
+    { href: "#step-ingest", label: "Ingest" },
+    { href: "#step-resolve", label: "Resolve" },
+    { href: "#step-collect", label: "Collect" },
+  ] as const;
+  return (
+    <div className="mb-8 flex flex-wrap items-center justify-center gap-2 text-[13px] sm:text-sm">
+      {items.map((item, i) => (
+        <span key={item.label} className="flex items-center gap-2">
+          {i > 0 ? (
+            <ArrowRight
+              className="h-3.5 w-3.5 shrink-0 text-[#00D4C8]/45"
+              aria-hidden
+            />
+          ) : null}
+          <Link
+            href={item.href}
+            className="rounded-full border border-[#00D4C8]/25 bg-[#00D4C8]/[0.08] px-3 py-1.5 font-medium text-[#00D4C8] transition hover:border-[#00D4C8]/45 hover:bg-[#00D4C8]/12"
+          >
+            {item.label}
+          </Link>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-border/40 px-4 pb-24 pt-16 sm:px-6 sm:pb-28 sm:pt-20 lg:px-8 lg:pt-24">
+    <section className="relative overflow-hidden border-b border-border/40 px-4 pb-28 pt-14 sm:px-6 sm:pb-32 sm:pt-20 lg:px-8 lg:pt-24">
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
-        <div className="absolute left-1/2 top-[-25%] h-[min(600px,75vh)] w-[min(960px,130vw)] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(0,212,200,0.14),transparent_62%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,hsl(222_53%_15%/0.4)_100%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#00D4C8]/35 to-transparent" />
+        <div className="absolute left-1/2 top-[-20%] h-[min(560px,72vh)] w-[min(920px,125vw)] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(0,212,200,0.16),transparent_58%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,hsl(215_45%_12%/0.55)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#00D4C8]/40 to-transparent" />
       </div>
       <div className="mx-auto max-w-4xl text-center">
-        <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00D4C8]/90">
+        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00D4C8]/90">
           Cross-border receivables
         </p>
-        <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl sm:leading-[1.08] lg:text-[3.15rem] lg:leading-[1.06]">
-          Get paid faster on every cross-border invoice
+        <FlowPills />
+        <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl sm:leading-[1.08] lg:text-[3.25rem] lg:leading-[1.05]">
+          From invoice to collected cash—one flow
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
-          Autonomous AI resolution for freelancers, creators &amp; African
-          exporters.
+          Upload and normalize invoices, let AI surface FX and compliance gaps,
+          approve recovery steps, then send buyers to Paystack with the right
+          totals. Built for freelancers, creators, and African exporters.
         </p>
-        <div className="mt-11 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:justify-center">
+        <div className="mt-12 flex flex-col items-stretch justify-center gap-4 sm:flex-row sm:items-center sm:justify-center">
           <Link
-            href="/sign-up"
+            href={marketingSignUpUrl()}
             className={cn(
               buttonVariants({ size: "lg" }),
-              "inline-flex min-h-12 min-w-[200px] justify-center bg-[#00D4C8] font-semibold text-[#0A2540] shadow-lg shadow-[#00D4C8]/20 hover:bg-[#00D4C8]/90"
+              "inline-flex min-h-[3.25rem] min-w-[220px] justify-center px-8 text-base font-semibold",
+              "bg-[#00D4C8] text-[#0A2540] shadow-[0_20px_50px_-12px_rgba(0,212,200,0.45)] ring-2 ring-[#00D4C8]/40 hover:bg-[#00D4C8]/90"
             )}
           >
             Sign up free
-            <ArrowRight className="opacity-90" />
+            <ArrowRight className="opacity-90" aria-hidden />
           </Link>
           <Link
             href="#pricing"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
-              "inline-flex min-h-12 min-w-[200px] justify-center border-border/70 bg-transparent"
+              "inline-flex min-h-[3.25rem] min-w-[200px] justify-center border-border/70 bg-white/[0.03] backdrop-blur-sm"
             )}
           >
-            View pricing
+            View pricing (USD)
           </Link>
         </div>
-        <p className="mt-10 text-sm text-muted-foreground">
-          No credit card required to start
+        <p className="mt-8 text-sm text-muted-foreground">
+          No credit card to create your account · Clerk sign-in on production
         </p>
       </div>
     </section>
@@ -152,7 +226,7 @@ function ProblemSection() {
   return (
     <section
       id="problem"
-      className="scroll-mt-20 border-b border-border/40 px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
+      className="scroll-mt-[5.5rem] border-b border-border/40 px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
     >
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-2xl text-center">
@@ -170,7 +244,7 @@ function ProblemSection() {
           {problems.map(({ icon: Icon, title, body }) => (
             <div
               key={title}
-              className="group rounded-2xl border border-border/50 bg-card/30 p-8 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset] transition-colors hover:border-[#00D4C8]/25 hover:bg-card/45"
+              className="group rounded-2xl border border-border/50 bg-card/25 p-8 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset] transition-colors hover:border-[#00D4C8]/28 hover:bg-card/40"
             >
               <div
                 className="mb-5 inline-flex rounded-xl border border-white/[0.08] p-3"
@@ -199,19 +273,19 @@ const steps = [
   {
     n: "1",
     title: "Ingest",
-    desc: "Bring invoices from exports or structured payloads—normalized fields and issue detection in one pass.",
+    desc: "Drop PDFs or structured payloads. We normalize fields, detect issues, and attach everything to a single resolution thread.",
     icon: FileInput,
   },
   {
     n: "2",
     title: "Resolve",
-    desc: "AI-assisted workflows surface FX, tax, and compliance gaps, then propose recovery steps you approve.",
+    desc: "AI surfaces FX, tax, and compliance gaps, drafts recovery steps, and waits for your approve/reject in the app.",
     icon: Zap,
   },
   {
     n: "3",
     title: "Collect",
-    desc: "Route clients to payment with accurate totals and a clear audit trail when funds settle.",
+    desc: "After approval, open your Paystack hosted link with invoice totals where supported—clear audit trail from quote to cash.",
     icon: Banknote,
   },
 ] as const;
@@ -220,7 +294,7 @@ function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="scroll-mt-20 border-b border-border/40 px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
+      className="scroll-mt-[5.5rem] border-b border-border/40 px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
     >
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-2xl text-center">
@@ -228,20 +302,30 @@ function HowItWorks() {
             How it works
           </p>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Three steps. One flow.
+            Ingest → Resolve → Collect
           </h2>
           <p className="mt-4 text-base text-muted-foreground">
-            From invoice to collected cash—without the spreadsheet chaos.
+            The same three steps we ship in the product—from file upload to
+            Paystack checkout.
           </p>
         </div>
 
-        <ol className="mx-auto mt-16 grid max-w-5xl gap-8 lg:grid-cols-3 lg:gap-6">
+        <ol className="mx-auto mt-16 grid max-w-5xl gap-8 lg:grid-cols-3 lg:gap-5">
           {steps.map(({ n, title, desc, icon: Icon }, i) => (
             <li
               key={title}
-              className="relative flex flex-col rounded-2xl border border-border/55 bg-gradient-to-b from-card/60 to-background/95 p-8 shadow-xl shadow-black/25"
+              id={`step-${title.toLowerCase()}`}
+              className="relative scroll-mt-[6rem] flex flex-col rounded-2xl border border-border/55 bg-gradient-to-b from-card/55 to-background/95 p-8 shadow-xl shadow-black/30"
             >
-              <div className="mb-6 flex items-center gap-4">
+              {i < steps.length - 1 ? (
+                <div
+                  className="absolute -right-3 top-1/2 z-0 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#00D4C8]/20 bg-[#071a2e] text-[#00D4C8]/50 lg:flex"
+                  aria-hidden
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              ) : null}
+              <div className="relative z-[1] mb-6 flex items-center gap-4">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#00D4C8]/30 bg-[#00D4C8]/10 font-mono text-sm font-bold text-[#00D4C8]">
                   {n}
                 </span>
@@ -257,13 +341,15 @@ function HowItWorks() {
                   />
                 </div>
               </div>
-              <h3 className="text-xl font-semibold text-foreground">{title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              <h3 className="relative z-[1] text-xl font-semibold text-foreground">
+                {title}
+              </h3>
+              <p className="relative z-[1] mt-3 text-sm leading-relaxed text-muted-foreground">
                 {desc}
               </p>
               {i < steps.length - 1 ? (
                 <div
-                  className="mt-8 flex justify-center text-[#00D4C8]/30 lg:hidden"
+                  className="mt-8 flex justify-center text-[#00D4C8]/35 lg:hidden"
                   aria-hidden
                 >
                   <ArrowRight className="h-5 w-5 rotate-90" />
@@ -281,7 +367,7 @@ function Pricing() {
   return (
     <section
       id="pricing"
-      className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
+      className="scroll-mt-[5.5rem] px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
     >
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-2xl text-center">
@@ -289,10 +375,10 @@ function Pricing() {
             Pricing
           </p>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Simple USD pricing
+            Simple plans in USD
           </h2>
           <p className="mt-4 text-base text-muted-foreground">
-            Choose a plan. Cancel anytime.
+            Paystack-hosted checkout. Cancel anytime.
           </p>
         </div>
 
@@ -324,7 +410,7 @@ function Pricing() {
               ))}
             </ul>
             <a
-              href={PAYSTACK_CHECKOUT_STARTER}
+              href={PAYSTACK_CHECKOUT_STARTER_URL}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
@@ -334,9 +420,18 @@ function Pricing() {
             >
               Get Starter — $6/mo
             </a>
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground/90">
+              <span className="font-medium text-muted-foreground">
+                Paystack link
+              </span>
+              <br />
+              <code className="mt-1 block break-all rounded-md bg-black/25 px-2 py-1.5 text-[10px] text-[#00D4C8]/90">
+                {PAYSTACK_CHECKOUT_STARTER_URL}
+              </code>
+            </p>
           </div>
 
-          <div className="relative flex flex-col overflow-hidden rounded-2xl border-2 border-[#00D4C8]/40 bg-gradient-to-b from-[#00D4C8]/[0.07] via-card/50 to-card/30 p-8 sm:p-10 shadow-[0_24px_64px_-24px_rgba(0,212,200,0.18)]">
+          <div className="relative flex flex-col overflow-hidden rounded-2xl border-2 border-[#00D4C8]/40 bg-gradient-to-b from-[#00D4C8]/[0.08] via-card/50 to-card/30 p-8 sm:p-10 shadow-[0_24px_64px_-24px_rgba(0,212,200,0.2)]">
             <div className="absolute right-5 top-5 rounded-full border border-[#00D4C8]/35 bg-[#00D4C8]/12 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#00D4C8]">
               Recommended
             </div>
@@ -366,7 +461,7 @@ function Pricing() {
               ))}
             </ul>
             <a
-              href={PAYSTACK_CHECKOUT_PRO}
+              href={PAYSTACK_CHECKOUT_PRO_URL}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
@@ -376,11 +471,21 @@ function Pricing() {
             >
               Get Pro — $15/mo
             </a>
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground/90">
+              <span className="font-medium text-muted-foreground">
+                Paystack link
+              </span>
+              <br />
+              <code className="mt-1 block break-all rounded-md bg-black/25 px-2 py-1.5 text-[10px] text-[#00D4C8]/90">
+                {PAYSTACK_CHECKOUT_PRO_URL}
+              </code>
+            </p>
           </div>
         </div>
 
         <p className="mx-auto mt-12 max-w-lg text-center text-sm text-muted-foreground">
-          Checkout is hosted by Paystack. Prices shown in USD.
+          Prices listed in USD. Checkout, receipts, and renewals are handled by
+          Paystack on the URLs above.
         </p>
       </div>
     </section>
@@ -389,25 +494,26 @@ function Pricing() {
 
 function Testimonials() {
   return (
-    <section className="border-t border-border/40 bg-muted/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:px-8">
+    <section className="border-t border-border/40 bg-muted/[0.06] px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00D4C8]">
           Customers
         </p>
         <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Trusted by teams who ship
+          Shipping with design partners
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
-          Case studies and logos coming soon.
+          Logos and case studies land here as we onboard teams across Africa and
+          the diaspora.
         </p>
-        <div className="mt-10 rounded-2xl border border-dashed border-border/60 bg-card/30 px-8 py-16">
+        <div className="mt-10 rounded-2xl border border-dashed border-border/60 bg-card/30 px-8 py-14">
           <Quote
             className="mx-auto h-10 w-10 text-muted-foreground/40"
             aria-hidden
           />
           <p className="mx-auto mt-5 max-w-md text-sm italic leading-relaxed text-muted-foreground">
-            Customer quotes and social proof will appear here as we onboard
-            design partners across Africa and the diaspora.
+            We&apos;re focused on the ingest → resolve → collect loop first—your
+            wins will show up here next.
           </p>
         </div>
       </div>
@@ -415,9 +521,36 @@ function Testimonials() {
   );
 }
 
+function MidCta() {
+  return (
+    <section className="border-t border-border/40 px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-4xl rounded-2xl border border-[#00D4C8]/25 bg-gradient-to-br from-[#00D4C8]/[0.09] via-card/40 to-[#071a2e]/80 p-8 text-center shadow-[0_24px_64px_-28px_rgba(0,0,0,0.45)] sm:p-12">
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Run the full flow in your workspace
+        </h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
+          Create a free account, connect your stack, and move from first upload
+          to Paystack collect in one session.
+        </p>
+        <Link
+          href={marketingSignUpUrl()}
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "mt-8 inline-flex min-h-[3rem] min-w-[220px] justify-center px-8 text-base font-semibold",
+            "bg-[#00D4C8] text-[#0A2540] shadow-lg shadow-[#00D4C8]/25 ring-2 ring-[#00D4C8]/30 hover:bg-[#00D4C8]/90"
+          )}
+        >
+          Sign up free
+          <ArrowRight className="opacity-90" aria-hidden />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
-    <footer className="border-t border-border/50 bg-[#061525]/80 px-4 py-14 sm:px-6 lg:px-8">
+    <footer className="border-t border-border/50 bg-[#040d18]/90 px-4 py-14 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-10">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col items-center gap-3 sm:items-start">
@@ -454,11 +587,14 @@ function Footer() {
             © {new Date().getFullYear()} Ryvelo
           </p>
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-muted-foreground">
-            <Link href="/sign-in" className="hover:text-foreground">
+            <Link href={marketingSignInUrl()} className="hover:text-foreground">
               Sign in
             </Link>
-            <Link href="/sign-up" className="hover:text-foreground">
-              Sign up
+            <Link
+              href={marketingSignUpUrl()}
+              className="font-medium text-[#00D4C8] hover:underline"
+            >
+              Sign up free
             </Link>
             <Link href="/dashboard" className="hover:text-foreground">
               Dashboard
@@ -489,6 +625,7 @@ export default async function HomePage() {
         <HowItWorks />
         <Pricing />
         <Testimonials />
+        <MidCta />
       </main>
       <Footer />
     </div>

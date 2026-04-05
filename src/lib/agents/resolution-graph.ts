@@ -21,6 +21,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { analyzeInvoice } from "@/lib/invoice/analyze";
 import { sendResolutionEmail } from "@/lib/email/send-resolution-email";
 import { createAttachablePaymentLinks } from "@/lib/payments/attach";
+import { buildPaystackCollectUrl } from "@/lib/payments/paystack-checkout-urls";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   Issue,
@@ -83,7 +84,23 @@ function normalizeSnapshot(s: ResolutionState): ResolutionState {
     ...s,
     aiSteps: normalizeAiSteps(s.aiSteps),
     issues: Array.isArray(s.issues) ? s.issues : [],
+    collectPaymentLink:
+      typeof s.collectPaymentLink === "string" ? s.collectPaymentLink : undefined,
   };
+}
+
+/** JSONB `issues_detected` must always be a Postgres/JSON array. */
+function normalizeIssuesDetectedForDb(raw: unknown): unknown[] {
+  return Array.isArray(raw) ? raw : [];
+}
+
+async function persistResolutionPaymentLink(
+  resolutionId: string | undefined,
+  url: string
+): Promise<void> {
+  if (!resolutionId || !url.trim()) return;
+  const supabase = createSupabaseAdminClient();
+  await supabase.from("resolutions").update({ payment_link: url }).eq("id", resolutionId);
 }
 
 /** Persist full ai_steps JSONB after each node (Supabase). */
@@ -365,6 +382,14 @@ async function executeResolutionSoftFailure(
     "failed"
   );
   const aiSteps = [...base.aiSteps, failStep];
+  const cur =
+    typeof base.rawInvoice.currency === "string" ? base.rawInvoice.currency : "USD";
+  const payUrl = buildPaystackCollectUrl({
+    invoiceId: base.invoiceId,
+    resolutionId: base.resolutionId,
+    amount: base.amountAtStake,
+    currency: cur,
+  });
 
   try {
     await persistAiSteps(base.resolutionId, aiSteps);
@@ -375,11 +400,20 @@ async function executeResolutionSoftFailure(
   if (base.resolutionId) {
     try {
       const supabaseExec = createSupabaseAdminClient();
+      const { data: row } = await supabaseExec
+        .from("resolutions")
+        .select("issues_detected, ai_steps")
+        .eq("id", base.resolutionId)
+        .maybeSingle();
+      const issuesSafe = normalizeIssuesDetectedForDb(row?.issues_detected);
+
       const { error: dbErr } = await supabaseExec
         .from("resolutions")
         .update({
           human_reviewed: true,
-          outcome_status: "approved_with_error",
+          outcome_status: "approved",
+          payment_link: payUrl,
+          issues_detected: issuesSafe,
           ai_steps: JSON.parse(JSON.stringify(aiSteps)) as unknown[],
         })
         .eq("id", base.resolutionId);
@@ -398,6 +432,7 @@ async function executeResolutionSoftFailure(
       amountRecovered: base.amountRecovered ?? base.amountAtStake,
       aiSteps,
       executionWarning: EXECUTION_WARNING_USER_MSG,
+      collectPaymentLink: payUrl,
     },
   };
 }
@@ -435,6 +470,14 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
   const recoveredAmount = s.amountAtStake;
   const resolutionId = s.resolutionId ?? s.invoiceId;
 
+  const paystackCollectUrl = buildPaystackCollectUrl({
+    invoiceId: s.invoiceId,
+    resolutionId: s.resolutionId,
+    amount: recoveredAmount,
+    currency,
+  });
+  await persistResolutionPaymentLink(s.resolutionId, paystackCollectUrl);
+
   try {
     const attach = await createAttachablePaymentLinks({
       recoveredAmount,
@@ -449,7 +492,12 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
         ? s.proposedResolution.paymentLink
         : undefined;
 
-    const paymentLinks: { label: string; url: string }[] = [];
+    const paymentLinks: { label: string; url: string }[] = [
+      {
+        label: "Collect (Paystack checkout)",
+        url: paystackCollectUrl,
+      },
+    ];
     if (attach.stripeFeeCheckoutUrl) {
       paymentLinks.push({
         label: `Pay success fee (Stripe, ${attach.feePercent}% of recovered)`,
@@ -525,6 +573,7 @@ async function executeResolutionNode(state: GraphState): Promise<GraphState> {
         status: "executing",
         amountRecovered: s.amountRecovered ?? s.amountAtStake,
         aiSteps,
+        collectPaymentLink: paystackCollectUrl,
       },
     };
   } catch (e) {
@@ -542,19 +591,33 @@ async function logOutcomeNode(state: GraphState): Promise<GraphState> {
   const amountRecovered = s.amountRecovered ?? s.amountAtStake;
   const executionWarning = s.executionWarning;
 
-  const outcomeStatus = executionWarning
-    ? ("approved_with_error" as const)
-    : ("resolved" as const);
+  /** Human-approved pipeline ends with `approved` on the resolution row (collect link stored). */
+  const outcomeStatus = "approved" as const;
 
   try {
     const supabase = createSupabaseAdminClient();
-    const update = {
+
+    let issuesDetected: unknown[] = [];
+    if (s.resolutionId) {
+      const { data: resRow } = await supabase
+        .from("resolutions")
+        .select("issues_detected")
+        .eq("id", s.resolutionId)
+        .maybeSingle();
+      issuesDetected = normalizeIssuesDetectedForDb(resRow?.issues_detected);
+    }
+
+    const update: Record<string, unknown> = {
       ai_steps: normalizeAiSteps(s.aiSteps),
       outcome_status: outcomeStatus,
       amount_recovered: amountRecovered,
       resolved_at: resolvedAt,
       human_reviewed: true,
+      issues_detected: issuesDetected,
     };
+    if (typeof s.collectPaymentLink === "string" && s.collectPaymentLink.length > 0) {
+      update.payment_link = s.collectPaymentLink;
+    }
 
     if (s.resolutionId) {
       const { error } = await supabase
@@ -853,7 +916,7 @@ async function loadContextForInvoice(
  * **`runUnattended: true`** (dashboard “Resolve now”): runs detect→propose→execute→log
  * without stopping at human review (same as skip-human for this run only).
  */
-export async function runResolutionWorkflow(
+async function runResolutionWorkflowInner(
   invoiceId: string,
   options?: {
     humanApproved?: boolean;
@@ -997,6 +1060,38 @@ export async function runResolutionWorkflow(
     state: s2,
     warning: s2.executionWarning,
   };
+}
+
+export async function runResolutionWorkflow(
+  invoiceId: string,
+  options?: {
+    humanApproved?: boolean;
+    runUnattended?: boolean;
+    rawOverlay?: Record<string, unknown>;
+  }
+): Promise<ResolutionWorkflowResult> {
+  try {
+    return await runResolutionWorkflowInner(invoiceId, options);
+  } catch (e) {
+    console.error("[runResolutionWorkflow] unhandled", e);
+    return {
+      phase: "failed",
+      invoiceId,
+      resolutionId: undefined,
+      state: {
+        invoiceId,
+        profileId: "",
+        clerkId: "",
+        rawInvoice: {},
+        issues: [],
+        proposedResolution: {},
+        aiSteps: [],
+        status: "failed",
+        amountAtStake: 0,
+      } as ResolutionState,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
 }
 
 /**

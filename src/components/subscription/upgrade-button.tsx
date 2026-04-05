@@ -2,17 +2,22 @@ import type { ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
+import {
+  PAYSTACK_CHECKOUT_PRO_URL,
+  PAYSTACK_CHECKOUT_STARTER_URL,
+} from "@/lib/payments/paystack-checkout-urls";
 import { cn } from "@/lib/utils";
+
+/** @deprecated use PAYSTACK_CHECKOUT_STARTER_URL */
+export const PAYSTACK_CHECKOUT_STARTER = PAYSTACK_CHECKOUT_STARTER_URL;
+/** @deprecated use PAYSTACK_CHECKOUT_PRO_URL */
+export const PAYSTACK_CHECKOUT_PRO = PAYSTACK_CHECKOUT_PRO_URL;
 
 /**
  * Paystack hosted checkout (configure products in Paystack Dashboard).
  * For development, switch the Paystack account / payment pages to **test mode** and use test keys
  * so charges are not live.
  */
-export const PAYSTACK_CHECKOUT_STARTER =
-  "https://paystack.shop/pay/azsd6l063h";
-export const PAYSTACK_CHECKOUT_PRO =
-  "https://paystack.shop/pay/gto1y470q5";
 
 type Variant = "compact" | "hero";
 
@@ -64,13 +69,13 @@ export function UpgradeSubscriptionButtons({
         )}
       >
         <CheckoutLink
-          href={PAYSTACK_CHECKOUT_STARTER}
+          href={PAYSTACK_CHECKOUT_STARTER_URL}
           className="h-11 min-w-[200px] justify-center px-5 sm:h-12"
         >
           Starter — $6/mo
         </CheckoutLink>
         <CheckoutLink
-          href={PAYSTACK_CHECKOUT_PRO}
+          href={PAYSTACK_CHECKOUT_PRO_URL}
           highlight
           className="h-11 min-w-[220px] justify-center px-5 shadow-lg shadow-accent/20 sm:h-12"
         >
@@ -82,11 +87,11 @@ export function UpgradeSubscriptionButtons({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <CheckoutLink href={PAYSTACK_CHECKOUT_STARTER} className="h-9 px-3 text-xs">
+      <CheckoutLink href={PAYSTACK_CHECKOUT_STARTER_URL} className="h-9 px-3 text-xs">
         Starter · $6/mo
       </CheckoutLink>
       <CheckoutLink
-        href={PAYSTACK_CHECKOUT_PRO}
+        href={PAYSTACK_CHECKOUT_PRO_URL}
         highlight
         className="h-9 px-3 text-xs"
       >

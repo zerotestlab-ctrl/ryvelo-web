@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,8 +12,14 @@ import {
 import type { ResolutionListRow } from "@/lib/data/resolutions-list";
 import {
   APPROVED_EMAIL_STEP_SKIPPED_TITLE,
+  RESOLUTION_APPROVED_PAYMENT_READY,
   RESOLUTION_APPROVED_TITLE,
 } from "@/lib/resolution-toast-messages";
+import {
+  buildPaystackCollectUrl,
+  ensurePaystackUrlWithAmount,
+} from "@/lib/payments/paystack-checkout-urls";
+import { formatAmount } from "@/lib/format";
 
 import { ResolutionTimeline } from "@/components/resolutions/ResolutionTimeline";
 import { Button } from "@/components/ui/button";
@@ -61,6 +68,25 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState(false);
 
+  /** After approve: Paystack URL from DB, or Pro-base checkout with invoice amount. */
+  const collectHref = useMemo(() => {
+    if (!row) return null;
+    const approved = row.humanReviewed && row.outcomeStatus !== "failed";
+    if (!approved) return null;
+    const amt = row.amountAtStake;
+    const cur = row.currency;
+    const stored = row.paymentLink?.trim();
+    if (stored) {
+      return ensurePaystackUrlWithAmount(stored, amt, cur);
+    }
+    return buildPaystackCollectUrl({
+      invoiceId: row.invoiceId,
+      resolutionId: row.id,
+      amount: amt,
+      currency: cur,
+    });
+  }, [row]);
+
   function close() {
     setError(null);
     setEditDraft(false);
@@ -86,11 +112,14 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
           setError(detail);
           return;
         }
-        close();
-        if (res.warning) {
+        if ("successMessage" in res && res.successMessage) {
+          toast.success(res.successMessage, {
+            description: "Collect link is saved on this resolution.",
+          });
+        } else if (res.warning) {
           if (res.warning === APPROVED_EMAIL_STEP_SKIPPED_TITLE) {
             toast.warning(APPROVED_EMAIL_STEP_SKIPPED_TITLE, {
-              description: "Your approval was saved. Check email settings if needed.",
+              description: "Your approval was saved. Open the Paystack link from the resolution when ready.",
             });
           } else {
             toast.warning(RESOLUTION_APPROVED_TITLE, {
@@ -98,7 +127,7 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
             });
           }
         } else {
-          toast.success(RESOLUTION_APPROVED_TITLE, {
+          toast.success(RESOLUTION_APPROVED_PAYMENT_READY, {
             description: "Saved to Supabase — dashboard and resolutions are updated.",
           });
         }
@@ -193,6 +222,36 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
               </ul>
             )}
           </section>
+
+          {collectHref ? (
+            <section className="mt-6 space-y-3 rounded-xl border border-accent/25 bg-accent/[0.06] p-4">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Collect
+                </h3>
+                <p className="mt-1 text-sm text-foreground">
+                  Step 3 — open Paystack to collect{" "}
+                  <span className="font-semibold tabular-nums text-accent">
+                    {formatAmount(row.amountAtStake, row.currency)}
+                  </span>{" "}
+                  (hosted page; amount passed when supported).
+                </p>
+              </div>
+              <a
+                href={collectHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-11 w-full max-w-md items-center justify-center gap-2 rounded-lg bg-accent px-5 text-base font-semibold text-accent-foreground shadow-md shadow-[#00D4C8]/15 transition-colors hover:bg-accent/90 sm:w-auto"
+              >
+                Payment link
+                <ExternalLink className="h-4 w-4 shrink-0 opacity-95" aria-hidden />
+              </a>
+              <p className="text-xs text-muted-foreground">
+                Opens your Paystack hosted checkout (Pro lane by default). Invoice id is included for
+                reconciliation.
+              </p>
+            </section>
+          ) : null}
 
           <section className="mt-6 space-y-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

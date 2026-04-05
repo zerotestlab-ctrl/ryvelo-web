@@ -65,6 +65,8 @@ export interface ResolutionState {
    * with `outcome_status` approved and a user-facing message.
    */
   executionWarning?: string;
+  /** Paystack (or configured) collect URL persisted on `resolutions.payment_link`. */
+  collectPaymentLink?: string;
 }
 
 /** Result of `runResolutionWorkflow` — UI waits on `awaiting_human`. */
