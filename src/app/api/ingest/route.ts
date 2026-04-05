@@ -72,7 +72,16 @@ export async function POST(req: Request) {
 
     if (!result.ok) {
       console.warn(`${LOG} ingest failed`, result.code, result.error);
-      return NextResponse.json(result, { status: statusFromError(result) });
+      const friendly =
+        result.code === "NO_PROFILE"
+          ? {
+              ...result,
+              error:
+                result.error ||
+                "Account setup is not complete. Try again in a moment or refresh the page.",
+            }
+          : result;
+      return NextResponse.json(friendly, { status: statusFromError(result) });
     }
 
     console.log(`${LOG} ingest success`, {

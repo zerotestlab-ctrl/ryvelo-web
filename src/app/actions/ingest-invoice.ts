@@ -40,7 +40,9 @@ export async function ingestInvoiceAction(
   } catch (e) {
     console.error(`${LOG} unexpected error`, e);
     const message =
-      e instanceof Error ? e.message : "Unexpected error while ingesting.";
+      e instanceof Error
+        ? e.message
+        : "Something went wrong while saving your invoice. Please try again.";
     return { ok: false, error: message, code: "DATABASE" };
   }
 }

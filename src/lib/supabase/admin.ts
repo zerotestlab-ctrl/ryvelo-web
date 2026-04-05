@@ -53,6 +53,23 @@ export async function getProfileRowForClerkUser(clerkUserId: string) {
   };
 }
 
+/** Load profile by primary key (e.g. right after `ensureProfileForClerkUser` created the row). */
+export async function getProfileRowById(profileId: string) {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, subscription_plan")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    subscription_plan: (data.subscription_plan as string | null) ?? "free",
+  };
+}
+
 /** Display label for the top bar (defaults to Free if unauthenticated or no row). */
 export async function getSubscriptionPlanLabelForClerkUser(
   clerkUserId: string | null

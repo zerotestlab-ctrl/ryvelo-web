@@ -1,24 +1,30 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { createProfileIfMissing } from "@/app/actions/create-profile";
 
 /**
- * Runs once per session after Clerk loads — ensures `profiles` exists (sign-up redirect + direct links).
+ * Ensures a `profiles` row exists after Clerk loads and on each app navigation
+ * (including every dashboard load). Calls `createProfileIfMissing` (server action).
+ * Idempotent — refreshes the server tree when a row was created.
  */
 export function ProfileBootstrap() {
   const { isLoaded, userId } = useAuth();
-  const ran = useRef(false);
+  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    if (!isLoaded || !userId || ran.current) return;
-    ran.current = true;
-    void createProfileIfMissing().catch(() => {
-      /* non-fatal; user can retry on next navigation */
+    if (!isLoaded || !userId) return;
+
+    void createProfileIfMissing().then((r) => {
+      if (r.ok && r.created) {
+        router.refresh();
+      }
     });
-  }, [isLoaded, userId]);
+  }, [isLoaded, userId, pathname, router]);
 
   return null;
 }

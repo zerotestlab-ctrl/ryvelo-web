@@ -1,7 +1,5 @@
-import {
-  getProfileIdForClerkUser,
-  createSupabaseAdminClient,
-} from "@/lib/supabase/admin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { ensureProfileForClerkUser } from "@/lib/profile/ensure-profile";
 import { analyzeInvoicePayload } from "@/lib/ingest/analyze-invoice";
 import type {
   IngestErrorResponse,
@@ -84,26 +82,21 @@ export async function runIngestInvoice(opts: {
     hasRawData: !!payload.raw_data,
   });
 
-  let profileId: string;
-  try {
-    console.log(`${LOG} profile lookup…`);
-    const id = await getProfileIdForClerkUser(clerkUserId);
-    if (!id) {
-      console.warn(`${LOG} no profile row for clerk user`);
-      return {
-        ok: false,
-        error:
-          "No Supabase profile for this account. Add a row in profiles with your clerk_id.",
-        code: "NO_PROFILE",
-      };
-    }
-    profileId = id;
-    console.log(`${LOG} profile ok`, { profileId });
-  } catch (e) {
-    console.error(`${LOG} profile lookup error`, e);
-    const msg = e instanceof Error ? e.message : "Profile lookup failed";
-    return { ok: false, error: msg, code: "DATABASE" };
+  console.log(`${LOG} ensure profile…`);
+  const ensured = await ensureProfileForClerkUser(clerkUserId);
+  if (!ensured.ok) {
+    console.warn(`${LOG} profile ensure failed`, ensured.reason);
+    return {
+      ok: false,
+      error:
+        ensured.reason === "Not signed in"
+          ? "Sign in to upload invoices."
+          : `Account setup failed: ${ensured.reason}`,
+      code: "NO_PROFILE",
+    };
   }
+  const profileId = ensured.profileId;
+  console.log(`${LOG} profile ok`, { profileId, created: ensured.created });
 
   let analysisResult: Awaited<ReturnType<typeof analyzeInvoicePayload>>;
   try {

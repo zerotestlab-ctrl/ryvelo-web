@@ -1,5 +1,6 @@
 import {
   createSupabaseAdminClient,
+  getProfileRowById,
   getProfileRowForClerkUser,
   isSupabaseEnvConfigured,
 } from "@/lib/supabase/admin";
@@ -262,7 +263,10 @@ const emptyMetrics = (): ReturnType<typeof buildMetrics> =>
 const RECENT_INVOICES_LIMIT = 25;
 const RECENT_RESOLUTIONS_LIMIT = 25;
 
-export async function getDashboardData(clerkUserId: string | null): Promise<{
+export async function getDashboardData(
+  clerkUserId: string | null,
+  opts?: { ensuredProfileId?: string }
+): Promise<{
   invoices: InvoiceRow[];
   resolutions: ResolutionTimelineItem[];
   fetchError: string | null;
@@ -300,7 +304,10 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
   }
 
   try {
-    const profileRow = await getProfileRowForClerkUser(clerkUserId);
+    let profileRow = await getProfileRowForClerkUser(clerkUserId);
+    if (!profileRow && opts?.ensuredProfileId) {
+      profileRow = await getProfileRowById(opts.ensuredProfileId);
+    }
     if (!profileRow) {
       return {
         invoices: [],
