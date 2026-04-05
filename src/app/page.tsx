@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Banknote,
@@ -26,27 +28,33 @@ export const metadata: Metadata = {
     "Autonomous AI resolution for freelancers, creators & African exporters. Get paid faster with FX-aware workflows.",
 };
 
+/** Required for `auth()` — marketing `/` stays public; signed-in users redirect to the app. */
+export const dynamic = "force-dynamic";
+
 function Nav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#071a2e]/90 backdrop-blur-xl supports-[backdrop-filter]:bg-[#071a2e]/75">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <RyveloLogo href="/" />
-        <nav className="flex items-center gap-1 sm:gap-2">
+    <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#071a2e]/92 backdrop-blur-xl supports-[backdrop-filter]:bg-[#071a2e]/78 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.65)]">
+      <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <RyveloLogo href="/" className="shrink-0" />
+        <nav
+          className="flex items-center gap-0.5 sm:gap-1"
+          aria-label="Primary"
+        >
           <Link
             href="#problem"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline"
+            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline md:px-2"
           >
             Problem
           </Link>
           <Link
             href="#how-it-works"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline"
+            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline md:px-2"
           >
             How it works
           </Link>
           <Link
             href="#pricing"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline"
+            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:inline md:px-2"
           >
             Pricing
           </Link>
@@ -61,7 +69,10 @@ function Nav() {
           </Link>
           <Link
             href="/sign-up"
-            className={cn(buttonVariants({ size: "sm" }), "font-semibold")}
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "font-semibold shadow-sm shadow-[#00D4C8]/10"
+            )}
           >
             Sign up free
           </Link>
@@ -408,30 +419,35 @@ function Footer() {
   return (
     <footer className="border-t border-border/50 bg-[#061525]/80 px-4 py-14 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-10">
-        <div className="flex flex-col items-center gap-4 text-center sm:items-start sm:text-left">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-[#00D4C8]" aria-hidden />
-            Built with ZEROTEST LAB QA rigor
+        <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col items-center gap-3 sm:items-start">
+            <RyveloLogo href="/" compact className="opacity-95" />
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#00D4C8]" aria-hidden />
+              Built with ZEROTEST LAB QA rigor
+            </div>
           </div>
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Questions? Email{" "}
-            <a
-              href="mailto:ryvelo12@gmail.com"
-              className="font-medium text-[#00D4C8] underline-offset-4 hover:underline"
-            >
-              ryvelo12@gmail.com
-            </a>{" "}
-            or follow{" "}
-            <a
-              href="https://x.com/zerotestlab"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-[#00D4C8] underline-offset-4 hover:underline"
-            >
-              @zerotestlab on X
-            </a>
-            .
-          </p>
+          <div className="max-w-md text-center text-sm leading-relaxed text-muted-foreground sm:text-left">
+            <p>
+              Questions?{" "}
+              <a
+                href="mailto:ryvelo12@gmail.com"
+                className="font-medium text-[#00D4C8] underline-offset-4 hover:underline"
+              >
+                ryvelo12@gmail.com
+              </a>{" "}
+              or{" "}
+              <a
+                href="https://x.com/zerotestlab"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[#00D4C8] underline-offset-4 hover:underline"
+              >
+                @zerotestlab on X
+              </a>
+              .
+            </p>
+          </div>
         </div>
         <div className="flex flex-col items-center justify-between gap-6 border-t border-border/40 pt-8 sm:flex-row">
           <p className="text-sm text-muted-foreground">
@@ -454,7 +470,16 @@ function Footer() {
   );
 }
 
-export default function HomePage() {
+/**
+ * Public marketing homepage — no sign-in required.
+ * Signed-in users are sent to `/dashboard` (see `middleware.ts` and `redirect` below).
+ */
+export default async function HomePage() {
+  const { userId } = await auth();
+  if (userId) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <Nav />
