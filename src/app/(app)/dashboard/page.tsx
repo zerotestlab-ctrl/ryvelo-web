@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { CashVelocityChart } from "@/components/dashboard/cash-velocity-chart";
 import { RecentInvoicesDataTable } from "@/components/dashboard/recent-invoices-data-table";
+import { UploadInvoiceButton } from "@/components/dashboard/upload-invoice-button";
 import { SubscriptionUpgradeCta } from "@/components/subscription/upgrade-button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { ResolutionTimeline } from "@/components/ui/resolution-timeline";
@@ -26,8 +27,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-1 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Dashboard
           </h1>
@@ -35,7 +36,10 @@ export default async function DashboardPage() {
             Cash recovered, resolution throughput, and open receivables.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">Live metrics</p>
+        <div className="flex flex-shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <UploadInvoiceButton disabled={!hasProfile || !userId} />
+          <p className="text-xs text-muted-foreground">Live · Supabase</p>
+        </div>
       </div>
 
       {fetchError ? (
@@ -101,7 +105,7 @@ export default async function DashboardPage() {
           </div>
           <RecentInvoicesDataTable
             data={invoices}
-            emptyMessage="No invoices yet. Invoices from your ingest pipeline (e.g. POST /api/ingest) will appear here."
+            emptyMessage="No invoices yet. Upload a JSON invoice or use the ingest API."
           />
         </div>
 

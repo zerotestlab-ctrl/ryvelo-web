@@ -25,6 +25,7 @@ export default function SignInPage() {
           routing="path"
           signUpUrl={signUpUrl}
           afterSignInUrl={signInFallbackRedirectUrl}
+          forceRedirectUrl={signInFallbackRedirectUrl}
         />
       </div>
     </div>

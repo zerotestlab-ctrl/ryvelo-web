@@ -18,7 +18,10 @@ export const clerkPublicAuthConfig = {
   signInPath: "/sign-in",
   signUpPath: "/sign-up",
 
-  /** Post-auth landing (dashboard app). */
-  signInFallbackRedirectUrl: `${ETERNOVA_APP_ORIGIN}/dashboard`,
-  signUpFallbackRedirectUrl: `${ETERNOVA_APP_ORIGIN}/dashboard`,
+  /**
+   * Post-auth landing — always `/dashboard` on the current host (local or eternova.xyz).
+   * Do not hard-code the marketing domain here or redirects break in development.
+   */
+  signInFallbackRedirectUrl: "/dashboard",
+  signUpFallbackRedirectUrl: "/dashboard",
 } as const;

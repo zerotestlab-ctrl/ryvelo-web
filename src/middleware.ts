@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 if (process.env.NODE_ENV === "production") {
   const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
@@ -21,6 +22,13 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  const { userId } = await auth();
+
+  /** Signed-in users never see the marketing homepage — go straight to the app. */
+  if (userId && req.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
   if (!isPublicRoute(req)) {
     await auth.protect();
   }

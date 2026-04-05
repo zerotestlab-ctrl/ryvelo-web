@@ -15,7 +15,8 @@ function stepLabel(name: string): string {
 }
 
 export function ResolutionTimeline({ steps, className }: Props) {
-  if (steps.length === 0) {
+  const list = Array.isArray(steps) ? steps : [];
+  if (list.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">No workflow steps recorded.</p>
     );
@@ -28,7 +29,7 @@ export function ResolutionTimeline({ steps, className }: Props) {
         aria-hidden
       />
       <ul className="space-y-0">
-        {steps
+        {list
           .filter((s): s is ResolutionStep => s != null && typeof s === "object")
           .map((s, idx) => {
           const stepName = typeof s.step === "string" ? s.step : "step";

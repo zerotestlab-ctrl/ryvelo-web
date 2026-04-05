@@ -37,9 +37,27 @@ export function ResolutionTimeline({
   items,
   className,
 }: ResolutionTimelineProps) {
+  const safe = Array.isArray(items)
+    ? items.filter(
+        (item): item is ResolutionTimelineItem =>
+          !!item &&
+          typeof item === "object" &&
+          typeof item.id === "string" &&
+          typeof item.invoiceLabel === "string"
+      )
+    : [];
+
+  if (safe.length === 0) {
+    return (
+      <p className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+        No resolutions to display.
+      </p>
+    );
+  }
+
   return (
     <div className={cn("space-y-0", className)}>
-      {items.map((item, idx) => (
+      {safe.map((item, idx) => (
         <div key={item.id} className="relative flex gap-0">
           <div className="flex w-9 shrink-0 flex-col items-center">
             <div
@@ -48,7 +66,7 @@ export function ResolutionTimeline({
                 idx === 0 && "mt-1.5"
               )}
             />
-            {idx < items.length - 1 ? (
+            {idx < safe.length - 1 ? (
               <div className="mt-1 w-px flex-1 min-h-[24px] bg-border" />
             ) : null}
           </div>
@@ -74,9 +92,11 @@ export function ResolutionTimeline({
                   ) : null}
                 </div>
                 <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-                  {item.issues.map((issue, i) => (
-                    <li key={`${item.id}-${i}`}>{issue}</li>
-                  ))}
+                  {(Array.isArray(item.issues) ? item.issues : []).map(
+                    (issue, i) => (
+                      <li key={`${item.id}-${i}`}>{issue}</li>
+                    )
+                  )}
                 </ul>
               </div>
               <div className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-right">

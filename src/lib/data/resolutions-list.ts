@@ -198,6 +198,10 @@ export async function getResolutionListForClerkUser(
     return { rows, error: null };
   } catch (e) {
     console.error("[getResolutionListForClerkUser]", e);
-    return { rows: [], error: null };
+    return {
+      rows: [],
+      error:
+        e instanceof Error ? e.message : "Could not load resolutions from Supabase.",
+    };
   }
 }

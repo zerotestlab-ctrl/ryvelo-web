@@ -396,7 +396,8 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
     const resolutions: ResolutionTimelineItem[] = timelineSlice.map((r) => {
       const inv = byInvoice.get(r.invoice_id);
       const client = inv?.client_name ?? "Invoice";
-      const shortId = r.invoice_id.slice(0, 8);
+      const invKey = r.invoice_id ?? "";
+      const shortId = invKey ? invKey.slice(0, 8) : "—";
       const o = mapOutcome(r.outcome_status);
       const currency = inv?.currency ?? "USD";
       const recovered =
@@ -435,10 +436,12 @@ export async function getDashboardData(clerkUserId: string | null): Promise<{
     };
   } catch (e) {
     console.error("[getDashboardData]", e);
+    const msg =
+      e instanceof Error ? e.message : "Could not load dashboard from Supabase.";
     return {
       invoices: [],
       resolutions: [],
-      fetchError: null,
+      fetchError: msg,
       hasProfile: false,
       subscriptionPlanLabel: "Free",
       metrics: emptyMetrics(),

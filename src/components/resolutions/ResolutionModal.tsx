@@ -101,7 +101,7 @@ export function ResolutionModal({ row, open, onOpenChange }: Props) {
     row.outcomeStatus === "pending" && !row.humanReviewed;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open && !!row} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl gap-0 overflow-hidden border-border/80 p-0 shadow-xl shadow-black/40">
         <DialogHeader className="border-b border-border/60 bg-card/40 px-6 py-5">
           <DialogTitle className="pr-8 text-lg font-semibold tracking-tight">
